@@ -1,0 +1,5 @@
+* quantdb
+A database schema for storing arbitrary quantitative measurements.
+
+See the [[file:./docs/api.org][REST API documentation]] for details on
+the external query interface.

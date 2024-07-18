@@ -3,7 +3,6 @@ from typing import Literal
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.wsgi import WSGIMiddleware
-from fastapi.staticfiles import StaticFiles
 
 from quantdb.api_server import app as quantdb_flask_app
 

@@ -43,13 +43,12 @@ def test():
         f"{base}objects?aspect=distance&value-quant-min=0.5&source-only=true",
         f"{base}objects?desc-inst=nerve-volume&aspect=distance&value-quant-min=0.5&source-only=true",
         # values-quant
-        f'{base}values/quant?dataset={dataset_uuid}&aspect=distance',
-        f'{base}values/quant?object={actual_package_uuid}&aspect=distance',
-        f'{base}values/quant?aspect=distance',
-        f'{base}values/quant?aspect=distance-via-reva-ft-sample-id-normalized-v1',
-        f'{base}values/quant?aspect=distance-via-reva-ft-sample-id-normalized-v1&agg-type=instance',
-        f'{base}values/quant?aspect=distance-via-reva-ft-sample-id-normalized-v1&value-quant-min=0.4&value-quant-max=0.7',
-
+        f"{base}values/quant?dataset={dataset_uuid}&aspect=distance",
+        f"{base}values/quant?object={actual_package_uuid}&aspect=distance",
+        f"{base}values/quant?aspect=distance",
+        f"{base}values/quant?aspect=distance-via-reva-ft-sample-id-normalized-v1",
+        f"{base}values/quant?aspect=distance-via-reva-ft-sample-id-normalized-v1&agg-type=instance",
+        f"{base}values/quant?aspect=distance-via-reva-ft-sample-id-normalized-v1&value-quant-min=0.4&value-quant-max=0.7",
         # values-cat
         f"{base}values/cat?object={actual_package_uuid}",
         f"{base}values/cat?object={actual_package_uuid}&union-cat-quant=true",  # shouldn't need it in this case

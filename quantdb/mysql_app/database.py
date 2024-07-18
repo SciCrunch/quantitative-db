@@ -9,9 +9,9 @@ from sqlalchemy.orm import sessionmaker
 from quantdb.config import Settings
 
 # TODO: get new setting env setup first
-# SQLALCHEMY_DATABASE_URL = Settings().MYSQL_URL
+SQLALCHEMY_DATABASE_URL = Settings().SQLALCHEMY_DATABASE_URI
 
-# engine = create_engine(SQLALCHEMY_DATABASE_URL)
-# SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+engine = create_engine(SQLALCHEMY_DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# Base: Any = declarative_base()
+Base: Any = declarative_base()
