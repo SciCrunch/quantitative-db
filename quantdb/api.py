@@ -3,15 +3,31 @@ import json
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from functools import lru_cache
+from typing import Any, Dict, Generator, Literal, Optional
 
+from fastapi import (
+    Depends,
+    FastAPI,
+    File,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+)
+from fastapi.security import OAuth2PasswordBearer
 from flask import Flask, request
+from sqlalchemy import text
+from sqlalchemy.orm import Session  # type: ignore
 from sqlalchemy.sql import text as sql_text
 
 from quantdb import exceptions as exc
-from quantdb.config import auth
+from quantdb.config import Settings, auth
+from quantdb.mysql_app.database import SessionLocal
 from quantdb.utils import dbUri, isoformat, log
 
 log = log.getChild("api")
+fastapi_app = FastAPI()
 
 
 class JEncode(json.JSONEncoder):
@@ -53,12 +69,37 @@ url_sql_where = (  # TODO arity spec here
     ("aspect", "aspect", "ain.label = any(:aspect)", "quant"),
     ("agg-type", "agg_type", "qd.aggregation_type = :agg_type", "quant"),
     # TODO shape
-
-    ('value-quant', 'value_quant', 'qv.value = :value_quant', 'quant'),
-    ('value-quant-margin', 'value_quant_margin', 'qv.value <= :value_quant + :value_quant_margin AND qv.value >= :value_quant - :value_quant_margin', 'quant'),
-    ('value-quant-min', 'value_quant_min', 'qv.value >= :value_quant_min', 'quant'),
-    ('value-quant-max', 'value_quant_max', 'qv.value <= :value_quant_max', 'quant'),
+    ("value-quant", "value_quant", "qv.value = :value_quant", "quant"),
+    (
+        "value-quant-margin",
+        "value_quant_margin",
+        "qv.value <= :value_quant + :value_quant_margin AND qv.value >= :value_quant - :value_quant_margin",
+        "quant",
+    ),
+    ("value-quant-min", "value_quant_min", "qv.value >= :value_quant_min", "quant"),
+    ("value-quant-max", "value_quant_max", "qv.value <= :value_quant_max", "quant"),
 )
+
+
+@lru_cache()
+def get_settings():
+    """
+    Get settings from mongodb - alternative for test and production credientials
+
+    Returns
+    -------
+    Settings
+        pydantic BaseSettings model with MongoDB credentials
+    """
+    return Settings()
+
+
+def get_mysql_db() -> Generator[Session, Any, None]:
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 
 def get_where(kwargs):
@@ -70,15 +111,13 @@ def get_where(kwargs):
             params[s] = kwargs[u]
             if t == "cat":
                 _where_cat.append(w)
-            elif t == 'quant':
+            elif t == "quant":
                 # do not include value-quant if value-quant-margin is provided
-                if (u == 'value-quant' and
-                    'value-quant-margin' in kwargs and
-                    kwargs['value-quant-margin']):
+                if u == "value-quant" and "value-quant-margin" in kwargs and kwargs["value-quant-margin"]:
                     continue
                 else:
                     _where_quant.append(w)
-            elif t == 'both':
+            elif t == "both":
                 _where_cat.append(w)
                 _where_quant.append(w)
             else:
@@ -593,8 +632,17 @@ args_default = {
 }
 
 
-def getArgs(request, endpoint, dev=False):
+app = FastAPI()
+
+
+def getArgs(request: Request, endpoint: str, dev: bool = False) -> Dict[str, Any]:
     default = copy.deepcopy(args_default)
+
+    # TODO: temporary fix to allow flask and fastapi to work together
+    try:
+        args = request.query_params
+    except Exception as e:
+        args = request.args
 
     if dev:
         default["return-query"] = False
@@ -625,21 +673,23 @@ def getArgs(request, endpoint, dev=False):
     elif endpoint == "values/quant":
         [default.pop(k) for k in list(default) if k in ("desc-cat", "value-cat", "value-cat-open")]
 
-    extras = set(request.args) - set(default)
+    extras = set(args) - set(default)
     if extras:
         # FIXME raise this as a 401, TODO need error types for this
         nl = "\n"
         raise exc.UnknownArg(f"unknown args: {nl.join(extras)}")
 
     def convert(k, d):
-        if k in request.args:
+        if k in args:
             # arity is determined here
-            if k in ('dataset', 'include-equivalent', 'union-cat-quant', 'include-unused', 'agg-type') or k.startswith('value-quant'):
-                v = request.args[k]
+            if k in ("dataset", "include-equivalent", "union-cat-quant", "include-unused", "agg-type") or k.startswith(
+                "value-quant"
+            ):
+                v = args[k]
                 if k in ("dataset",):
                     v = uuid.UUID(v)
             else:
-                v = request.args.getlist(k)
+                v = args.getlist(k)
                 if k in ("object",):
                     v = [uuid.UUID(_) for _ in v]  # caste to uuid to simplify sqlalchemy type mapping
         else:
@@ -666,9 +716,7 @@ def getArgs(request, endpoint, dev=False):
 
 def make_app(db=None, name="quantdb-api-server", dev=False):
     app = Flask(name)
-    kwargs = {k: auth.get(f"db-{k}") for k in ("user", "host", "port", "database")}  # TODO integrate with cli options
-    kwargs["dbuser"] = kwargs.pop("user")
-    app.config["SQLALCHEMY_DATABASE_URI"] = dbUri(**kwargs)  # use os.environ.update
+    app.config["SQLALCHEMY_DATABASE_URI"] = get_settings().SQLALCHEMY_DATABASE_URI
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     db.init_app(app)
     session = db.session
@@ -844,3 +892,68 @@ LEFT OUTER JOIN aspects AS aspar ON aspar.id = ap.parent
         return default_flow("aspects", "aspect", main_query, to_json, alt_query_fun=query)
 
     return app
+
+
+def default_flow_fastapi(request, session, endpoint, record_type, query_fun, json_fun, alt_query_fun=None):
+    try:
+        kwargs = getArgs(request, endpoint)
+    except exc.UnknownArg as e:
+        return json.dumps({"error": e.args[0], "http_response_status": 422}), 422
+    except Exception as e:
+        # breakpoint()
+        raise e
+
+    def gkw(k):
+        return k in kwargs and kwargs[k]
+
+    if gkw("include-unused"):
+        query_fun = alt_query_fun
+
+    # FIXME record_type is actually determined entirely in query_fun right now
+    try:
+        query, params = query_fun(endpoint, kwargs)
+    except Exception as e:
+        # breakpoint()
+        raise e
+
+    if gkw("return-query"):
+        return query
+
+    try:
+        res = session.execute(sql_text(query), params)
+    except Exception as e:
+        # breakpoint()
+        raise e
+
+    try:
+        out = json_fun(record_type, res, prov=("prov" in kwargs and kwargs["prov"]))
+        resp = json.dumps(wrap_out(endpoint, kwargs, out), cls=JEncode), 200, {"Content-Type": "application/json"}
+    except Exception as e:
+        # breakpoint()
+        raise e
+
+    return resp
+
+
+@fastapi_app.get(
+    "/test",
+    status_code=200,
+)
+def get_test(
+    mysql_db: Session = Depends(get_mysql_db),  # type: ignore
+) -> Literal["testing-api"]:
+    return "testing-api"
+
+
+@fastapi_app.get(
+    "/objects",
+    status_code=200,
+)
+def get_objects(
+    request: Request,
+    session: Session = Depends(get_mysql_db),  # type: ignore
+) -> Any:
+    """objects with derived values that match all criteria"""
+    resp, status_code, header = default_flow_fastapi(request, session, "objects", "object", main_query, to_json)
+    result = json.loads(resp)  # fastapi does not like json strings
+    return result
