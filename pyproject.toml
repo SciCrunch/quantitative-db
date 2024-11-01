@@ -1,0 +1,24 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "quantdb"
+version = "0.1.0"
+description = "Quantitative DB"
+readme = "README.md"
+packages = [{ include = "quantdb" }]
+dependencies = [
+    "sqlalchemy ~= 2.0.29",
+    "pydantic ~= 2.6.4",
+    "fastapi ~= 0.110.1",
+    "uvicorn ~= 0.29.0",
+    "pydantic-settings ~= 2.2.1",
+]
+requires-python = ">=3.10"
+
+# [project.scripts]
+# quantdb-fastapi = "uvicorn quantdb.main:app --reload"
+
+[project.optional-dependencies]
+dev = ["pytest ~= 8.1.1", "pre-commit ~= 3.7.0"]
