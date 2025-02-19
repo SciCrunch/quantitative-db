@@ -1,6 +1,6 @@
+import logging
 import os
 import sys
-import logging
 from datetime import datetime
 
 
@@ -12,10 +12,7 @@ def makeSimpleLogger(name, level=logging.INFO):
 
     logger.setLevel(level)
     ch = logging.StreamHandler()  # FileHander goes to disk
-    fmt = ('[%(asctime)s] - %(levelname)8s - '
-           '%(name)14s - '
-           '%(filename)16s:%(lineno)-4d - '
-           '%(message)s')
+    fmt = '[%(asctime)s] - %(levelname)8s - ' '%(name)14s - ' '%(filename)16s:%(lineno)-4d - ' '%(message)s'
     formatter = logging.Formatter(fmt)
     ch.setFormatter(formatter)
     logger.addHandler(ch)
@@ -50,8 +47,4 @@ def isoformat(datetime_instance, timespec='auto'):
         # don't pass timespec if type is not date not datetime
         kwargs['timespec'] = timespec
 
-    return (datetime_instance
-            .isoformat(**kwargs)
-            .replace('.', ',')
-            .replace('+00:00', 'Z'))
-
+    return datetime_instance.isoformat(**kwargs).replace('.', ',').replace('+00:00', 'Z')

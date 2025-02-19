@@ -1,0 +1,36 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+dependencies = [
+    "sqlalchemy ~= 2.0.29",
+    "fastapi ~= 0.110.1",
+    "uvicorn ~= 0.29.0",
+    "pydantic-settings ~= 2.2.1",
+    "flask ~= 3.0.3",
+    "Flask-SQLAlchemy ~= 3.1.1",
+    "orthauth ~= 0.0.18",
+    "cython",
+    "psycopg2-binary",
+    "pre-commit ~= 4.1.0"
+]
+name = "quantdb"
+version = "0.1.0"
+description = "Quantitative DB"
+dynamic = ["readme"]
+packages = [{ include = "quantdb" }]
+requires-python = ">=3.10"
+
+[tool.setuptools.dynamic]
+readme = {file = ["README.org"], content-type = "text/plain"}
+
+[tool.pre-commit]
+repos = [
+    { repo = "https://github.com/pre-commit/pre-commit-hooks", rev = "v4.4.0", hooks = [{ id = "trailing-whitespace" }, { id = "end-of-file-fixer" }] },
+    { repo = "https://github.com/grantjenks/blue", rev = "0.9.1", hooks = [{ id = "blue" }] },
+    { repo = "https://github.com/PyCQA/flake8", rev = "6.1.0", hooks = [{ id = "flake8" }] }
+]
+
+[project.optional-dependencies]
+dev = ["pytest ~= 8.1.1", "pre-commit ~= 3.7.0"]

@@ -1,6 +1,7 @@
-from quantdb.utils import setPS1
-from quantdb.api import make_app
 from flask_sqlalchemy import SQLAlchemy
+
+from quantdb.api import make_app
+from quantdb.utils import setPS1
 
 setPS1(__file__)
 

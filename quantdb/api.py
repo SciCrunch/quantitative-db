@@ -1,14 +1,15 @@
+import copy
 import json
 import uuid
-import copy
-from decimal import Decimal
 from datetime import datetime
+from decimal import Decimal
+
 from flask import Flask, request
 from sqlalchemy.sql import text as sql_text
-from quantdb.utils import log, dbUri, isoformat
-from quantdb.config import auth
-from quantdb import exceptions as exc
 
+from quantdb import exceptions as exc
+from quantdb.config import auth
+from quantdb.utils import dbUri, isoformat, log
 
 log = log.getChild('api')
 

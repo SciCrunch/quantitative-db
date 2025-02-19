@@ -35,4 +35,3 @@ ALTER ROLE "quantdb-test-admin" SET search_path = quantdb, public;
 ALTER ROLE "quantdb-test-user" SET search_path = quantdb, public;
 ALTER ROLE "quantdb-admin" SET search_path = quantdb, public;
 ALTER ROLE "quantdb-user" SET search_path = quantdb, public;
-
