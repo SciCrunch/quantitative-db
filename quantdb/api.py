@@ -1,9 +1,11 @@
 import json
 import uuid
 import copy
+import pathlib
 from decimal import Decimal
 from datetime import datetime
 from flask import Flask, request
+from flask_htmx import HTMX
 from sqlalchemy.sql import text as sql_text
 from quantdb.utils import log, dbUri, isoformat
 from quantdb.config import auth
@@ -831,5 +833,322 @@ LEFT OUTER JOIN aspects AS aspar ON aspar.id = ap.parent
 """), {}
 
         return default_flow('aspects', 'aspect', main_query, to_json, alt_query_fun=query)
+
+    _htmx_path = pathlib.Path('resources/js/htmx.min.js')
+    if not _htmx_path.exists():
+        if not _htmx_path.parent.exists():
+            _htmx_path.parent.mkdir(parents=True, exist_ok=True)  # TOCTOU :/
+
+        import requests
+        # FIXME lol dangerzone
+        resp = requests.get('https://raw.githubusercontent.com/bigskysoftware/htmx/refs/heads/master/dist/htmx.min.js')
+        with open(_htmx_path, 'wb') as f:
+            f.write(resp.content)
+
+    with open(_htmx_path, 'rb') as f:
+        _htmx_min = f.read()
+
+    #_htmx_min_zstd =  # dependencies :/
+    import gzip
+    _htmx_min_gz = gzip.compress(_htmx_min)
+    _ma = 60 * 60 * 24
+    _htmx_headers = {
+            'Content-Encoding': 'gzip',
+            'Cache-Control': f'max-age={_ma}'
+    }
+
+    _GO_AWAY = int(1e99)
+    _fhead = {'Cache-Control': f'max-age={_GO_AWAY}'}
+    @app.route('/favicon.ico')
+    def route_fav():
+        return 'GO AWAY MICROSOFT SUCKS', 200, _fhead
+
+    @app.route('/resources/js/htmx.min.js')
+    def route_htmx():
+        return _htmx_min_gz, 200, _htmx_headers
+
+    # the workflow is as follows
+    # - gib file
+    # - known file type? proceed, otherwise barf
+    # - addresses
+    #   - is file row or column
+    #   - ingest headers as addresses
+    #   - otherwise allow spec of addresses
+    # - descriptors
+    #   - inst, cat, quant
+    #   - search exising and select
+    #   - nothing then create new
+    #     - inst
+    #       - search/list
+    #       - create new
+    #     - quant
+    #       - aspects
+    #         - search/list
+    #         - create new
+    #       - units
+    #         - search/list
+    #         - create new
+    #       - agg type
+    #         - change if not instance
+    #       - fucking counts man
+    #     - cat
+    #       - cat descp
+    #         - search/list
+    #         - create new
+    #       - domain, range, eek
+    # - show possible mappings
+
+    htmx = HTMX(app)
+
+    @app.route(f'{bp}/ingest/start')
+    def route_1_ingest_start():
+        # list dataset
+        import orthauth as oa
+
+        # FIXME obviously bad
+        dlp = pathlib.Path('~/.cache/sparcur/racket/datasets-list.rktd').expanduser()  # yes this one has two top level exprs
+        with open(dlp, 'rt') as f:
+            string = f.read()
+
+        datasets, orgs = oa.utils.sxpr_to_python('(' + string + ')')
+        sdatasets = sorted(datasets, key=lambda r: r[2], reverse=True)
+
+        ths = 'did', 'title', 'updated', 'owner', 'org', 'status'
+        thead = '<tr>' + ''.join([f'<th>{th}</th>' for th in ths[1:]]) + '</tr>\n'
+        def proc_elems(did=None, title=None, updated=None, owner=None, org=None, status=None):
+            dataset_uuid = did.split(':')[-1]
+            return f'<td><a href="object/{dataset_uuid}">{title}</a></td><td>{updated}</td><td>{owner}</td><td>{org}</td><td>status</td></tr>\n'
+        trs = '<tr>\n'.join([proc_elems(**{k: v for k, v in zip(ths, elems)}) for elems in sdatasets])
+        table = '<table>' + thead + ''.join(trs) + '</table>'
+        return table
+
+
+    @app.route(f'{bp}/ingest/object/<dataset_uuid>')
+    def route_1_ingest_dataset(dataset_uuid):
+        import requests
+        resp = requests.get(f'https://cassava.ucsd.edu/sparc/datasets/{dataset_uuid}/LATEST/path-metadata.json')
+        blob = resp.json()
+        path_metadata = blob['data']
+
+        # list objects
+        # or is it instances
+        ths = (#'basename',
+               'dataset_relative_path',
+               'mimetype',
+               #'remote_id',
+               #'status': 'utility',
+               'timestamp_updated',
+               #'remote_inode_id': 4458838,
+               'size_bytes',
+               #'uri_api': 'https://api.pennsieve.io/datasets/N:dataset:fb1cbd05-4320-4d8b-ac3a-44f1fe810718',
+               'uri_human',
+               )
+        _ths = ths[2:-1]
+        thead = '<tr>' + ''.join([f'<th>{th}</th>' for th in ths]) + '</tr>\n'
+        def skey(blob):
+            return len(blob['dataset_relative_path'].split('/')), (blob['mimetype'] if 'mimetype' in blob else ''), blob['basename']
+        def proc_elems(dataset_relative_path=None, mimetype=None, remote_id=None, uri_human=None, **kwargs):
+            if mimetype is None:
+                return ''
+            href = remote_id.split(':')[-1]
+            td = f'<td><a href="{dataset_uuid}/{href}">{dataset_relative_path}</a><td><td>{mimetype}</td>' + ''.join([f'<td>{kwargs[k]}</td>' for k in _ths]) + f'<td><a href="{uri_human}">remote</a></td></tr>'
+            return f'{td}</tr>\n'
+        try:
+            # XXX a bunch of zarr stuff missing mimetypes e.g 0. 10. files ... wtf are those !??!
+            trs = '<tr>\n'.join([proc_elems(**pm) for pm in sorted(path_metadata, key=skey)
+                                 if 'mimetype' in pm and pm['mimetype'] and pm['mimetype'] != 'inode/directory'])
+        except KeyError as e:
+            breakpoint()
+            raise e
+        table = '<table>' + thead + ''.join(trs) + '</table>'
+
+        return table
+
+    def reflect_table(table_name):
+        sql = """
+WITH fkeys AS (
+SELECT
+la.attname AS source_column,
+c.confrelid::regclass AS target_table
+FROM pg_constraint AS c
+   JOIN pg_index AS i
+      ON i.indexrelid = c.conindid
+   JOIN pg_attribute AS la
+      ON la.attrelid = c.conrelid
+         AND la.attnum = c.conkey[1]
+   JOIN pg_attribute AS ra
+      ON ra.attrelid = c.confrelid
+         AND ra.attnum = c.confkey[1]
+WHERE
+  la.attrelid::regclass = (:table_name)::regclass
+  AND c.contype = 'f'
+  AND ra.attname = 'id'
+  AND cardinality(c.confkey) = 1
+)
+SELECT
+column_name, is_identity, is_nullable, data_type, column_default, target_table,
+udt_name, array(SELECT pg_enum.enumlabel FROM pg_type JOIN pg_enum ON pg_enum.enumtypid = pg_type.oid WHERE pg_type.typname = udt_name) AS enum
+FROM information_schema.columns
+LEFT OUTER JOIN fkeys ON column_name = source_column
+WHERE table_schema = 'quantdb' AND table_name = :table_name
+        """
+        #res = list(session.execute(sql_text("select column_name, is_nullable, data_type from information_schema.columns WHERE table_schema = 'quantdb' AND table_name = :table_name"), params=dict(table_name=table_name)))
+        res = list(session.execute(sql_text(sql), params=dict(table_name=table_name)))
+        return res
+
+    def query_table():
+        pass
+
+    # this is where orm reflection usually comes in ...
+    #dis = reflect_table('descriptors_inst')
+    #dcs = reflect_table('descriptors_cat')
+    #dqs = reflect_table('descriptors_quant')
+    #ass = reflect_table('aspects')  # parents ...
+    #uns = reflect_table('units')
+    #ass = reflect_table('')
+
+    from sqlalchemy import MetaData, Table
+    with app.app_context():
+        # and now for the better way!
+        metadata_obj = MetaData()
+        engine = session.connection().engine
+        tnames = 'addresses', 'descriptors_inst', 'descriptors_cat', 'descriptors_quant', 'aspects', 'units', 'controlled_terms'
+        tad, tdi, tdc, tdq, tas, tun, tct = [Table(tname, metadata_obj, autoload_with=engine) for tname in tnames]
+
+    @app.route(f'{bp}/ingest/object/<dataset_uuid>/<object_uuid>')
+    def route_1_ingest_dataset_object(dataset_uuid, object_uuid):
+        from sparcur.utils import PennsieveId as RemoteId
+        import requests
+        oid_path = '/'.join((
+            RemoteId('dataset:' + dataset_uuid).uuid_cache_path_string(1, 1, use_base64=True),
+            RemoteId('package:' + object_uuid).uuid_cache_path_string(1, 1, use_base64=True),
+        ))
+        resp = requests.get(f'https://cassava.ucsd.edu/sparc/objects/{oid_path}')
+        obj_meta = resp.json()
+        path_meta = obj_meta['path_metadata']
+        did = path_meta['dataset_id']
+        basename = path_meta['basename']
+        drp = path_meta['dataset_relative_path']
+        mimetype = path_meta['mimetype']
+        status = 'COMPLETELY MAPPED'  # NOT DONE, PARTIAL, etc.
+
+        def tabular_to_header(tabular):
+            pass
+
+        def json_to_json_paths(j):
+            # TODO use our recursive walk stuff from sparcur to pull out all the possible json path with type specs
+            pass
+
+        # TODO we should be able to populate this by reflecting the database
+        # by searching labels, and providing the values to fill or the enums to select to refine
+
+        # basically there are two ways this works
+        # for tabular headers if they fit the buttons go horiz and you can click through to get
+        # if there are too many we have a searchable dropdown and then a left and right button for forward and back
+        # changing the select header changes the contents below to the current header, might need an extra set of buttons that cycle through not done
+        object_uuid = '20720c2e-83fb-4454-bef1-1ce6a97fa748'
+        current_header = 'level'
+        params = {'object': uuid.UUID(object_uuid), 'ftype': 'tabular-header', 'addr': current_header}
+        objq = 'object = :object AND (addr_field = address_from_fadd_type_fadd(:ftype, :addr) OR addr_desc_inst = address_from_fadd_type_fadd(:ftype, :addr))'
+        res_odi = list(session.execute(sql_text(f'SELECT * FROM obj_desc_inst  AS odi JOIN descriptors_inst  AS di ON odi.desc_inst  = di.id WHERE {objq}'), params=params))
+        res_odc = list(session.execute(sql_text(f'SELECT * FROM obj_desc_cat   AS odc JOIN descriptors_cat   AS dc ON odc.desc_cat   = dc.id WHERE {objq}'), params=params)) 
+        res_odq = list(session.execute(sql_text(f'SELECT * FROM obj_desc_quant AS odq JOIN descriptors_quant AS dq ON odq.desc_quant = dq.id WHERE {objq}'), params=params)) 
+
+        #res = session.execute(sql_text('SELECT * FROM obj_desc_inst AS odi JOIN obj_desc_cat AS odc ON odi.object = odc.object JOIN obj_desc_quant AS odq ON odc.object = odq.object '
+        # + 'WHERE odi.object = :object OR odc.object = :object OR odq.object = :object'), params={'object': uuid.UUID(object_uuid)})
+
+        tabular_types = 'text/csv', 'text/tsv',  # TODO
+        mimetype = 'text/csv'
+        header = 'subject id', 'sample id', 'level', 'diameter'
+        # TODO the vertical selector
+
+        import sqlalchemy
+        _t_enum = sqlalchemy.dialects.postgresql.named_types.ENUM
+        _t_text = sqlalchemy.sql.sqltypes.TEXT
+        _t_int = sqlalchemy.sql.sqltypes.INTEGER
+
+        stuff = ''
+        for c in tad.c:
+            if c.primary_key:
+                continue
+
+            _c_type = type(c.type)
+            req = '' if c.nullable else ' required'
+            req_txt = '' if c.nullable else ' (required)'
+            label = f'<label for="{c.name}">{c.name}{req_txt}&nbsp;</label>'
+            if _c_type == _t_enum:
+                # TODO set default value from mimetype
+                options = f'<option value="">set {c.type.name}</option>' + ''.join(f'<option value="{e}">{e}</option>' for e in c.type.enums)
+                # FIXME may need more than just the column name
+                select = f'{label}<select id="{c.name}" name="{c.name}">{options}</select><br>'
+                elem = select
+            elif _c_type == _t_text:
+                # FIXME TODO this should come pre filled from the header list
+                input = f'{label}<input type="text" id="{c.name}" name="{c.name}"{req}/><br>'
+                elem = input
+            elif _c_type == _t_integer:
+                # foreign key and list/search
+                # and this is where troy's backprop shows up
+                i = '<p>lol integer</p>'
+                elem = i
+            else:
+                breakpoint()
+                raise NotImplementedError(f'TODO {c.type}')
+
+            stuff += elem
+
+        addr_stuff = stuff
+
+        body = f'''{did}<br>
+{status}<br>
+{drp}<br>
+<!-- {basename}<br> -->
+{mimetype}<br>
+headers (tabular)<br>
+  confirm want<br>
+<br>
+  address<br>
+{addr_stuff}
+  autofill<br>
+<br>
+  descriptors<br>
+<br>
+    instance (search by filling the values you would use to create)<br>
+      label<br>
+      description<br>
+      iri<br>
+<br>
+    categorical (search by filling the values you would use to create)<br>
+      label (search/list)<br>
+      description<br>
+      domain (desc_cat search/list)<br>
+      range (open/closed)<br>
+      description<br>
+      note<br>
+<br>
+    quantitative (search by filling the values you would use to create)<br>
+      label<br>
+      description<br>
+      domain<br>
+      shape<br>
+      aspect<br>
+      unit<br>
+      agg-type<br>
+      TODO count stuff<br>
+      note<br>
+<br>
+'''
+
+        thing = f'''<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<script src="/resources/js/htmx.min.js"></script>
+</head>
+<body>
+{body}
+</body>
+</html>'''
+        return thing
 
     return app
