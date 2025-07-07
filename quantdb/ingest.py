@@ -872,7 +872,6 @@ def extract_reva_ft(dataset_uuid, source_local=False, visualize=True):
         make_values_cat,
         make_values_quant,
     )
-
     # this is where things get annoying with needing selects on instance measured
 
 
@@ -1315,7 +1314,6 @@ def ingest_demo_jp2(session, source_local=True, do_insert=True, commit=False, de
 
 
 def ingest_reva_ft_all(session, source_local=False, do_insert=True, batch=False, commit=False, dev=False):
-
     dataset_uuids = (
         'aa43eda8-b29a-4c25-9840-ecbd57598afc',  # f001
         # the rest have uuid1 issues :/ all in the undefined folder it seems, might be able to fix with a reupload
