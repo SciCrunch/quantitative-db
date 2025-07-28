@@ -96,12 +96,21 @@ INSERT INTO class_parent (id, parent) VALUES
 (desc_inst_from_label('specimen'),               desc_inst_from_label('participant')),
 (desc_inst_from_label('subject'),                desc_inst_from_label('specimen')),
 (desc_inst_from_label('sample'),                 desc_inst_from_label('specimen')), -- FIXME TODO do we have multi-parent for samples with types?
+/*
+Here is a conundrum for you.
+nerve-cross-sections technically nerve-volumes with unit thickness (usually pixels)
+which means that they are almost always digitized as a plane one dimension lower
+however if i make nerve-volume a subClassOf volume then nerve-cross-section will
+be a subClassOf both volume and area ... which I guess is ok actually ... because
+the implication is clear, in 3d it has unit volume on one axis ... that has a nice
+interpretation for cross sectional area ... as expected given the naming
+*/
 (desc_inst_from_label('nerve-volume'),           desc_inst_from_label('nerve')),
-(desc_inst_from_label('nerve-cross-section'),    desc_inst_from_label('nerve')),
+(desc_inst_from_label('nerve-cross-section'),    desc_inst_from_label('nerve-volume')),
 (desc_inst_from_label('fascicle-volume'),        desc_inst_from_label('fascicle')),
-(desc_inst_from_label('fascicle-cross-section'), desc_inst_from_label('fascicle')),
+(desc_inst_from_label('fascicle-cross-section'), desc_inst_from_label('fascicle-volume')),
 (desc_inst_from_label('fiber-volume'),           desc_inst_from_label('fiber')),
-(desc_inst_from_label('fiber-cross-section'),    desc_inst_from_label('fiber'))
+(desc_inst_from_label('fiber-cross-section'),    desc_inst_from_label('fiber-volume'))
 --(desc_inst_from_label(''),                       desc_inst_from_label('')),
 
 ;
@@ -268,37 +277,37 @@ unit_from_label('unitless'),
 */
 
 ('reva ft sample anatomical location distance index normalized v1',
-desc_inst_from_label('nerve-volume'),
+desc_inst_from_label('nerve'),
 aspect_from_label('distance-via-reva-ft-sample-id-normalized-v1'),
 unit_from_label('unitless'),
 'instance'),  -- FIXME this isn't really instance, it is normalized across a whole population, which we might want to indicate here
 
 ('reva ft sample anatomical location distance index normalized v1 min',
-desc_inst_from_label('nerve-volume'),
+desc_inst_from_label('nerve'),
 aspect_from_label('distance-via-reva-ft-sample-id-normalized-v1'),
 unit_from_label('unitless'),
 'min'),
 
 ('reva ft sample anatomical location distance index normalized v1 max',
-desc_inst_from_label('nerve-volume'),
+desc_inst_from_label('nerve'),
 aspect_from_label('distance-via-reva-ft-sample-id-normalized-v1'),
 unit_from_label('unitless'),
 'max'),
 
 ('reva ft sample anatomical location distance index normalized v2',
-desc_inst_from_label('nerve-volume'),
+desc_inst_from_label('nerve'),
 aspect_from_label('distance-via-reva-ft-sample-id-normalized-v2'),
 unit_from_label('unitless'),
 'instance'),  -- FIXME this isn't really instance, it is normalized across a whole population, which we might want to indicate here
 
 ('reva ft sample anatomical location distance index normalized v2 min',
-desc_inst_from_label('nerve-volume'),
+desc_inst_from_label('nerve'),
 aspect_from_label('distance-via-reva-ft-sample-id-normalized-v2'),
 unit_from_label('unitless'),
 'min'),
 
 ('reva ft sample anatomical location distance index normalized v2 max',
-desc_inst_from_label('nerve-volume'),
+desc_inst_from_label('nerve'),
 aspect_from_label('distance-via-reva-ft-sample-id-normalized-v2'),
 unit_from_label('unitless'),
 'max'),

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 dependencies = [
-    "sqlalchemy ~= 2.0.29",
+    "sqlalchemy ~= 2.0.31",
     "fastapi ~= 0.110.1",
     "uvicorn ~= 0.29.0",
     "pydantic-settings ~= 2.2.1",
@@ -13,17 +13,30 @@ dependencies = [
     "orthauth ~= 0.0.18",
     "cython",
     "psycopg2-binary",
-    "pre-commit ~= 4.1.0"
+    "pre-commit ~= 4.1.0",
+    "pytest==8.3.5",
+    "pandas==2.2.3",
+    "scipy>=1.16.0",
+    "sparcur @ git+https://github.com/SciCrunch/sparc-curation.git",
+    "augpathlib>=0.0.25",
+    "requests",
+    "beautifulsoup4",
 ]
 name = "quantdb"
 version = "0.1.0"
 description = "Quantitative DB"
-dynamic = ["readme"]
-packages = [{ include = "quantdb" }]
 requires-python = ">=3.10"
 
-[tool.setuptools.dynamic]
-readme = {file = ["README.org"], content-type = "text/plain"}
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/quantdb",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["quantdb"]
 
 [tool.pre-commit]
 repos = [

@@ -24,8 +24,8 @@ and =?object= argument, this means that the results set will
 always be empty except in cases where a single object provided
 both cat and quant values. You can pass =?union-cat-quant=true=
 to change the behavior to =UNION=. The default behavior for
-this may change per endpoint in which case we will document which
-endpoints default to =UNION=.
+this depends on the endpoint, see the =arg V endpoint= table
+below to see which endpoints default to =UNION=.
 
 All arguments that are provided must satisfy on at least one single
 quantitative or categorical value, so e.g. ~?aspect=a&value-quant-min=1~
@@ -86,14 +86,16 @@ to limit the results of a query to the =terms= endpoint by passing
 | value-quant-max    | numeric   |     1 |
 |--------------------+-----------+-------|
 | limit              | integer   |     1 |
+| count              | bool      |     1 |
 | union-cat-quant    | bool      |     1 |
 | source-only        | bool      |     1 |
 | include-unused     | bool      |     1 |
 | prov               | bool      |     1 |
 
-Invalid combinations are marked with an x.
-Non-meaningful combinations are marked with a q.
-Not-implemented are marked with ni.
+Invalid combinations are marked with an =x=.
+Non-meaningful combinations are marked with a =q=.
+Not-implemented are marked with =ni=.
+=true= by default are marked with =t=.
 
 | arg V endpoint >   | objects | values/inst | values/cat | values/quant | desc/inst | desc/cat | desc/quant | terms | units | aspects |
 |--------------------+---------+-------------+------------+--------------+-----------+----------+------------+-------+-------+---------|
@@ -122,8 +124,9 @@ Not-implemented are marked with ni.
 | value-quant-min    |         |             | x          |              |           | q        |            | q     |       |         |
 | value-quant-max    |         |             | x          |              |           | q        |            | q     |       |         |
 |--------------------+---------+-------------+------------+--------------+-----------+----------+------------+-------+-------+---------|
-| limit              | ni      | ni          | ni         | ni           | ni        | ni       | ni         | ni    | ni    | ni      |
-| union-cat-quant    |         |             |            |              |           |          |            |       |       |         |
+| limit              |         |             |            |              |           |          |            |       |       |         |
+| count              | ni      |             |            |              | ni        | ni       | ni         | ni    | ni    | ni      |
+| union-cat-quant    | t       | t           |            |              | t         | t        | t          |       |       |         |
 | source-only        |         | x           | x          | x            | x         | x        | x          | x     | x     | x       |
 | include-unused     | x       | x           | x          | x            |           |          |            |       |       |         |
 | prov               | x       |             |            |              | x         | x        | x          | x     | x     | x       |

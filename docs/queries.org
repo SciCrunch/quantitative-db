@@ -1,4 +1,4 @@
-# -*- orgstrap-cypher: sha256; orgstrap-norm-func-name: orgstrap-norm-func--dprp-1-0; orgstrap-block-checksum: 41c0973b8709171406d6ddef97a4070279c65a47610715ef044eda4953a8c072; -*-
+# -*- orgstrap-cypher: sha256; orgstrap-norm-func-name: orgstrap-norm-func--dprp-1-0; orgstrap-block-checksum: ad0adb718dc286ea0f7ac5b6926eb433497ad7c7da7013081394ddf9bc1c9fc2; -*-
 # [[orgstrap][jump to the orgstrap block for this file]]
 
 #+name: orgstrap-shebang
@@ -57,6 +57,50 @@ select * from get_all_values_example() where agg_type in ('min', 'max') order by
 * Bootstrap :noexport:
 #+name: orgstrap
 #+begin_src elisp :results none :exports none :lexical yes
+(defun get-sql-insert-ocdn ()
+  (with-temp-buffer
+    (insert-file-contents-literally "../sql/inserts.sql")
+    (evil-ex-substitute (point-min) (point-max) '(";") " ON CONFLICT DO NOTHING;")
+    (buffer-string)))
+
+(defun qdb-get-config (auth-var)
+  (with-temp-buffer
+    (let ((process-environment
+           (cons (format "PYTHONPATH=%s:${PYTHONPATH}" (expand-file-name ".."))
+                 process-environment)))
+      (call-process
+       "python" nil (current-buffer) nil "-c"
+       (format "from quantdb.config import auth; print(auth.get('%s'), end='')" auth-var)))
+    (buffer-string)))
+
+(defun org-babel-sql-expand-vars (body vars &optional sqlite)
+  "Expand the variables held in VARS in BODY.
+
+If SQLITE has been provided, prevent passing a format to
+`orgtbl-to-csv'.  This prevents overriding the default format, which if
+there were commas in the context of the table broke the table as an
+argument mechanism."
+  (mapc
+   (lambda (pair)
+     (setq body
+	   (replace-regexp-in-string
+	    (format ":%s" (car pair)) ; XXX this is the issue change $ -> :
+	    (let ((val (cdr pair)))
+              (if (listp val)
+                  (let ((data-file (org-babel-temp-file "sql-data-")))
+                    (with-temp-file data-file
+                      (insert (orgtbl-to-csv
+                               val (if sqlite
+                                       nil
+                                     '(:fmt (lambda (el) (if (stringp el)
+                                                        el
+                                                      (format "%S" el))))))))
+                    data-file)
+                (if (stringp val) val (format "%S" val))))
+	    body t t)))
+   vars)
+  body)
+
 (defun fix-ocbe-queries () ; FIXME LOL yeah name collisions DO happen and YES this is why I implemented `defvar-local'
   (setq-local
    org-confirm-babel-evaluate
@@ -64,7 +108,9 @@ select * from get_all_values_example() where agg_type in ('min', 'max') order by
      ;;(message "%S" body)
      (not
       (or
+       (string-prefix-p "; elisp-safe-block" body)
        (member lang '("sql")))))))
+
 (fix-ocbe-queries)
 #+end_src
 

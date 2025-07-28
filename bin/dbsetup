@@ -3,11 +3,11 @@
 set -e
 SOURCE="${BASH_SOURCE[0]}"
 while [ -h "$SOURCE" ]; do # resolve all symlinks
-  DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
-  SOURCE="$(readlink "$SOURCE")"
-  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE" # resolve relative symlinks
+    DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+    SOURCE="$(readlink "$SOURCE")"
+    [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE" # resolve relative symlinks
 done
-ABS_PATH="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+ABS_PATH="$(cd -P "$(dirname "$SOURCE")" && pwd)"
 
 SQL="${ABS_PATH}/../sql"
 RESOURCES="${ABS_PATH}/../resources"
@@ -37,33 +37,33 @@ TESTING=0
 
 if test ${SETUP} -eq 0; then
 
-# postgres setup (these need to fail loudly)
-psql -U postgres -h ${HOST} -p $PORT -d postgres  -f "${SQL}/postgres.sql" -v ON_ERROR_STOP=on -v test_database=${TEST_DATABASE} -v database=$DATABASE
+    # postgres setup (these need to fail loudly)
+    psql -U postgres -h ${HOST} -p $PORT -d postgres -f "${SQL}/postgres.sql" -v ON_ERROR_STOP=on -v test_database=${TEST_DATABASE} -v database=$DATABASE
 
-if test ${PROD} -eq 0; then
-psql -U postgres -h ${HOST} -p $PORT -d postgres  -f "${SQL}/database.sql" -v ON_ERROR_STOP=on -v database=$DATABASE
-else
-psql -U postgres -h ${HOST} -p $PORT -d postgres  -f "${SQL}/test_database.sql" -v ON_ERROR_STOP=on -v test_database=${TEST_DATABASE}
-fi
+    if test ${PROD} -eq 0; then
+        psql -U postgres -h ${HOST} -p $PORT -d postgres -f "${SQL}/database.sql" -v ON_ERROR_STOP=on -v database=$DATABASE
+    else
+        psql -U postgres -h ${HOST} -p $PORT -d postgres -f "${SQL}/test_database.sql" -v ON_ERROR_STOP=on -v test_database=${TEST_DATABASE}
+    fi
 
-#psql -U postgres -h ${HOST} -p $PORT -d $DATABASE -f "${SQL}/extensions.sql" -v ON_ERROR_STOP=on
+    #psql -U postgres -h ${HOST} -p $PORT -d $DATABASE -f "${SQL}/extensions.sql" -v ON_ERROR_STOP=on
 
-# quantdb-admin setup
-if test ${PROD} -eq 0; then
-admin_user=quantdb-admin
-qdb_user=quantdb-user
-else
-admin_user=quantdb-test-admin
-qdb_user=quantdb-test-user
-fi
+    # quantdb-admin setup
+    if test ${PROD} -eq 0; then
+        admin_user=quantdb-admin
+        qdb_user=quantdb-user
+    else
+        admin_user=quantdb-test-admin
+        qdb_user=quantdb-test-user
+    fi
 
-psql -U ${admin_user} -h ${HOST} -p $PORT -d $DATABASE -f "${SQL}/schemas.sql" -v ON_ERROR_STOP=on
-psql -U ${admin_user} -h ${HOST} -p $PORT -d $DATABASE -f "${SQL}/tables.sql" -v ON_ERROR_STOP=on
-psql -U ${admin_user} -h ${HOST} -p $PORT -d $DATABASE -f "${SQL}/permissions.sql" -v ON_ERROR_STOP=on -v database=$DATABASE -v perm_user=${qdb_user}
+    psql -U ${admin_user} -h ${HOST} -p $PORT -d $DATABASE -f "${SQL}/schemas.sql" -v ON_ERROR_STOP=on
+    psql -U ${admin_user} -h ${HOST} -p $PORT -d $DATABASE -f "${SQL}/tables.sql" -v ON_ERROR_STOP=on
+    psql -U ${admin_user} -h ${HOST} -p $PORT -d $DATABASE -f "${SQL}/permissions.sql" -v ON_ERROR_STOP=on -v database=$DATABASE -v perm_user=${qdb_user}
 
 fi
 
 # testing
 if test ${TESTING} -eq 0; then
-psql -U quantdb-test-user -h ${HOST} -p $PORT -d $DATABASE -f "${SQL}/test.sql" -v ON_ERROR_STOP=on
+    psql -U quantdb-test-user -h ${HOST} -p $PORT -d $DATABASE -f "${SQL}/test.sql" -v ON_ERROR_STOP=on
 fi

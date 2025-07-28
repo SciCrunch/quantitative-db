@@ -1,0 +1,13 @@
+id,label,description,iri
+1,count,,http://uri.interlex.org/tgbugs/uris/readable/aspect/count
+2,distance,,http://uri.interlex.org/tgbugs/uris/readable/aspect/distance
+3,distance-vagus-normalized,,http://uri.interlex.org/tgbugs/uris/readable/aspect/distance-vagus-normalized
+4,distance-via-vagus-level-normalized,,http://uri.interlex.org/tgbugs/uris/readable/aspect/distance-via-vagus-level-normalized
+5,distance-via-vagus-level-normalized-v1,,http://uri.interlex.org/tgbugs/uris/readable/aspect/distance-via-vagus-level-normalized-v1
+6,distance-via-reva-ft-sample-id-normalized,,http://uri.interlex.org/tgbugs/uris/readable/aspect/distance-via-reva-ft-sample-id-normalized
+7,distance-via-reva-ft-sample-id-normalized-v1,,http://uri.interlex.org/tgbugs/uris/readable/aspect/distance-via-reva-ft-sample-id-normalized-v1
+8,distance-via-reva-ft-sample-id-normalized-v2,,http://uri.interlex.org/tgbugs/uris/readable/aspect/distance-via-reva-ft-sample-id-normalized-v2
+9,length,,http://uri.interlex.org/tgbugs/uris/readable/aspect/length
+10,diameter,,http://uri.interlex.org/tgbugs/uris/readable/aspect/diameter
+11,diameter-orthogonal-to-anterior-posterior-axis,,http://uri.interlex.org/tgbugs/uris/readable/aspect/diameter-orthogonal-to-anterior-posterior-axis
+12,length-parallel-to-anterior-posterior-axis,,http://uri.interlex.org/tgbugs/uris/readable/aspect/length-parallel-to-anterior-posterior-axis

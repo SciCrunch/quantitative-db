@@ -160,7 +160,7 @@ def main_query(endpoint, kwargs):
             'qd.label, '
             'id.label AS domain, '
             'qd.shape, '
-            'qd.aggregation_type as agg_type, '
+            'qd.aggregation_type AS agg_type, '
             'a.label AS aspect, '
             'u.label AS unit, '
             'qd.description '
@@ -226,47 +226,47 @@ LEFT OUTER JOIN aspects AS aspar ON aspar.id = ap.parent
     s_prov_objs = """
 ,
 im.dataset as prov_source_dataset, -- FIXME dataset_object maybe? or what?
-o.id as prov_source_id,
-o.id_type as prov_source_id_type,
-oi.updated_transitive as prov_source_updated_transitive,
+o.id AS prov_source_id,
+o.id_type AS prov_source_id_type,
+oi.updated_transitive AS prov_source_updated_transitive,
 """
 
     s_prov_i = """
-adi.addr_type  as prov_inst_addr_type,
-adi.addr_field as prov_inst_addr_field,
-adi.value_type as prov_inst_type,
+adi.addr_type  AS prov_inst_addr_type,
+adi.addr_field AS prov_inst_addr_field,
+adi.value_type AS prov_inst_type,
 
-add.addr_type  as prov_desc_inst_addr_type,
-add.addr_field as prov_desc_inst_addr_field,
-add.value_type as prov_desc_inst_type
+add.addr_type  AS prov_desc_inst_addr_type,
+add.addr_field AS prov_desc_inst_addr_field,
+add.value_type AS prov_desc_inst_type
 """
 
     s_prov_c = """
-adc.addr_type  as prov_value_addr_type,
-adc.addr_field as prov_value_addr_field,
-adc.value_type as prov_value_type
+adc.addr_type  AS prov_value_addr_type,
+adc.addr_field AS prov_value_addr_field,
+adc.value_type AS prov_value_type
 """ + (""",
-NULL::address_type     as prov_unit_addr_type,
-NULL                   as prov_unit_addr_field,
-NULL::field_value_type as prov_unit_type,
+NULL::address_type     AS prov_unit_addr_type,
+NULL                   AS prov_unit_addr_field,
+NULL::field_value_type AS prov_unit_type,
 
-NULL::address_type     as prov_aspect_addr_type,
-NULL                   as prov_aspect_addr_field,
-NULL::field_value_type as prov_aspect_type
+NULL::address_type     AS prov_aspect_addr_type,
+NULL                   AS prov_aspect_addr_field,
+NULL::field_value_type AS prov_aspect_type
 """ if sn.unit or endpoint == 'values/inst' else '')
 
     s_prov_q = """
-adq.addr_type  as prov_value_addr_type,
-adq.addr_field as prov_value_addr_field,
-adq.value_type as prov_value_type,
+adq.addr_type  AS prov_value_addr_type,
+adq.addr_field AS prov_value_addr_field,
+adq.value_type AS prov_value_type,
 
-adu.addr_type  as prov_unit_addr_type,
-adu.addr_field as prov_unit_addr_field,
-adu.value_type as prov_unit_type,
+adu.addr_type  AS prov_unit_addr_type,
+adu.addr_field AS prov_unit_addr_field,
+adu.value_type AS prov_unit_type,
 
-ada.addr_type  as prov_aspect_addr_type,
-ada.addr_field as prov_aspect_addr_field,
-ada.value_type as prov_aspect_type
+ada.addr_type  AS prov_aspect_addr_type,
+ada.addr_field AS prov_aspect_addr_field,
+ada.value_type AS prov_aspect_type
 """
 
     q_prov_i = """
@@ -282,7 +282,7 @@ JOIN addresses AS adc ON adc.id = odc.addr_field
 
     q_prov_q = """
 JOIN obj_desc_quant AS odq ON odq.object = o.id AND odq.desc_quant = qv.desc_quant
-JOIN addresses as adq on adq.id = odq.addr_field
+JOIN addresses AS adq on adq.id = odq.addr_field
 LEFT OUTER JOIN addresses AS adu ON adu.id = odq.addr_unit
 LEFT OUTER JOIN addresses AS ada ON ada.id = odq.addr_aspect
 """
@@ -291,10 +291,26 @@ LEFT OUTER JOIN addresses AS ada ON ada.id = odq.addr_aspect
         endpoint.startswith('desc/') or
         endpoint in ('terms', 'units', 'aspects') or
         (sn.objects or kw.prov) and not kw.source_only) else ''
+
     ep_select_cat, ep_select_quant = ep_select if isinstance(ep_select, tuple) else (ep_select, ep_select)
-    select_cat = f'SELECT {maybe_distinct}{ep_select_cat}' + (
+
+    if gkw('count'):
+        if maybe_distinct:
+            ep_select_count_cat = ', '.join([e.split(' AS ')[0].strip() for e in ep_select_cat.split(',')])
+            ep_select_count_quant = ', '.join([e.split(' AS ')[0].strip() for e in ep_select_quant.split(',')])
+            # FIXME TODO
+            q_count_cat = ''  #  f', count(distinct ({ep_select_count_cat})) AS total_count'
+            q_count_quant = ''  #  f', count(distinct ({ep_select_count_quant})) AS total_count'
+        else:
+            q_count_cat = ', count(*) OVER() AS total_count'
+            q_count_quant = ', count(*) OVER() AS total_count'
+    else:
+        q_count_cat = ''
+        q_count_quant = ''
+
+    select_cat = f'SELECT {maybe_distinct}{ep_select_cat}{q_count_cat}' + (
         (s_prov_objs + s_prov_i + ((',\n' + s_prov_c) if endpoint != 'values/inst' else '')) if kw.prov else '')
-    select_quant = f'SELECT {maybe_distinct}{ep_select_quant}' + (
+    select_quant = f'SELECT {maybe_distinct}{ep_select_quant}{q_count_quant}' + (
         (s_prov_objs + s_prov_i + ((',\n' + s_prov_q) if endpoint != 'values/inst' else '')) if kw.prov else '')
     _where_cat, _where_quant, params = get_where(kwargs)
     where_cat = f'WHERE {_where_cat}' if _where_cat else ''
@@ -329,8 +345,8 @@ LEFT OUTER JOIN addresses AS ada ON ada.id = odq.addr_aspect
           'ON oi.id = o.id\n')
          if kw.source_only else
          ('\n'  # have to use LEFT OUTER because object might have only one of cat or quant
-          'LEFT OUTER JOIN values_quant AS qv ON qv.instance = im.id\n'
-          'JOIN objects AS o ON cv.object = o.id OR qv.object = o.id\n'
+          #'LEFT OUTER JOIN values_quant AS qv ON qv.instance = im.id\n'  # FIXME redundant ? also another reason why union for objects?
+          'JOIN objects AS o ON cv.object = o.id --OR qv.object = o.id\n'
           'LEFT OUTER JOIN objects_internal AS oi\n'
           'ON oi.id = o.id\n')
          ) if sn.objects or kw.prov else '',
@@ -364,8 +380,8 @@ LEFT OUTER JOIN addresses AS ada ON ada.id = odq.addr_aspect
           'LEFT OUTER JOIN objects_internal AS oi ON oi.id = o.id\n')
          if kw.source_only else
          ('\n'  # have to use LEFT OUTER because object might have only one of cat or quant
-          'LEFT OUTER JOIN values_cat AS cv ON cv.instance = im.id\n'
-          'JOIN objects AS o ON qv.object = o.id OR cv.object = o.id\n'
+          #'LEFT OUTER JOIN values_cat AS cv ON cv.instance = im.id\n'
+          'JOIN objects AS o ON qv.object = o.id --OR cv.object = o.id\n'
           'LEFT OUTER JOIN objects_internal AS oi ON oi.id = o.id\n')
          ) if sn.objects or kw.prov else '',
         (q_prov_i + q_prov_q) if kw.prov else '',
@@ -382,6 +398,11 @@ LEFT OUTER JOIN addresses AS ada ON ada.id = odq.addr_aspect
         query = f'{sw_cat}\n{operator}\n{sw_quant}'
 
     log.log(9, '\n' + query)
+    limit = gkw('limit')
+    if limit or limit == 0:
+        # TODO pagination and full sizes counts
+        query += f'\nLIMIT {limit}'
+
     return query, params
 
 
@@ -431,6 +452,9 @@ def to_json(record_type, res, prov=False):
             if record_type is not None:
                 r['type'] = record_type
 
+            if 'total_count' in r:
+                r.pop('total_count')
+
             for cull_none in ('subclassof',):
                 if cull_none in r and r[cull_none] is None:
                     r.pop(cull_none)
@@ -456,15 +480,16 @@ def to_json(record_type, res, prov=False):
                 provs['type'] = 'prov'
                 r['prov'] = provs
 
-        out = result
+        total_count = rows[0].total_count if hasattr(rows[0], 'total_count') else None
+        out = result, total_count
         #breakpoint()
     else:
-        out = []
+        out = [], 0
 
     return out
 
 
-def wrap_out(endpoint, kwargs, out):
+def wrap_out(endpoint, kwargs, out, total_count):
     # TODO limit and instructions on how to get consistent results
     # TODO we could filter out limit here as well if is the default
     # but it is probably better to just return that even if they
@@ -475,9 +500,15 @@ def wrap_out(endpoint, kwargs, out):
         'type': 'quantdb-query-result',
         'endpoint': endpoint,
         'parameters': parameters,
+        'total_records': total_count,
         'records': n_records,
         'result': out,
     }
+
+    if total_count is None:
+        # we do this to preserve insertion ordering
+        blob.pop('total_records')
+
     return blob
 
 
@@ -515,6 +546,7 @@ args_default = {
     'value-quant-max': None,
 
     'limit': 100,
+    'count': False,
     #'operator': 'INTERSECT',  # XXX ...
     'union-cat-quant': False,  # by default we intersect but sometimes you want the union instead e.g. if object is passed
     'source-only': False,
@@ -566,7 +598,7 @@ def getArgs(request, endpoint, dev=False):
     elif endpoint == 'values/quant':
         [default.pop(k) for k in list(default) if k in ('desc-cat', 'value-cat', 'value-cat-open')]
 
-    if (endpoint == 'values/inst') or (endpoint == 'objects'):
+    if endpoint.startswith('desc/') or (endpoint == 'values/inst') or (endpoint == 'objects'):
         # prevent getting no results if only cat or quant
         # FIXME not quite sure how this interacts when other query parameters are provided
         # but I'm pretty sure union cat-quant=false is actually only desired when query
@@ -582,7 +614,7 @@ def getArgs(request, endpoint, dev=False):
     def convert(k, d):
         if k in request.args:
             # arity is determined here
-            if k in ('dataset', 'include-equivalent', 'union-cat-quant', 'include-unused', 'agg-type') or k.startswith('value-quant'):
+            if k in ('dataset', 'include-equivalent', 'union-cat-quant', 'include-unused', 'agg-type', 'limit', 'count') or k.startswith('value-quant'):
                 v = request.args[k]
                 if k in ('dataset',):
                     if not v:
@@ -619,11 +651,18 @@ def getArgs(request, endpoint, dev=False):
                 return False
             else:
                 raise TypeError(f'Expected a bool, got "{v}" instead.')
-        elif k.startswith('value-quant') or k in ('limit',):
+        elif k.startswith('value-quant'):  # or k in (,):
             try:
                 return float(v)
             except ValueError as e:
                 raise e
+        elif k == 'limit':
+            try:
+                return int(v)
+            except ValueError as e:
+                raise e
+        elif k == 'count':
+            return v.lower() == 'true'
         else:
             return v
 
@@ -700,8 +739,8 @@ def make_app(db=None, name='quantdb-api-server', dev=False):
             raise e
 
         try:
-            out = json_fun(record_type, res, prov=('prov' in kwargs and kwargs['prov']))
-            resp = json.dumps(wrap_out(endpoint, kwargs, out), cls=JEncode), 200, {'Content-Type': 'application/json'}
+            out, total_count = json_fun(record_type, res, prov=('prov' in kwargs and kwargs['prov']))
+            resp = json.dumps(wrap_out(endpoint, kwargs, out, total_count), cls=JEncode), 200, {'Content-Type': 'application/json'}
         except Exception as e:
             breakpoint()
             raise e
@@ -722,7 +761,7 @@ def make_app(db=None, name='quantdb-api-server', dev=False):
 
                     'id.iri, '
                     'id.label, '
-                    'idpar.label as subclassof'
+                    'idpar.label AS subclassof'
 
                     """
 FROM descriptors_inst AS id
@@ -744,8 +783,8 @@ LEFT OUTER JOIN descriptors_inst AS idpar ON idpar.id = clp.parent
                     'cd.range, '
                     'cd.description '
 
-                    'from descriptors_cat as cd '
-                    'left outer join descriptors_inst as cdid on cdid.id = cd.domain'
+                    'from descriptors_cat AS cd '
+                    'left outer join descriptors_inst AS cdid ON cdid.id = cd.domain'
                     ), {}
 
         return default_flow('desc/cat', 'desc-cat', main_query, to_json, alt_query_fun=query)  # TODO likely need different args e.g. to filter by desc_inst
@@ -759,15 +798,15 @@ LEFT OUTER JOIN descriptors_inst AS idpar ON idpar.id = clp.parent
                     'qd.label, '
                     'id.label AS domain, '
                     'qd.shape, '
-                    'qd.aggregation_type as agg_type, '
+                    'qd.aggregation_type AS agg_type, '
                     'a.label AS aspect, '
                     'u.label AS unit, '
                     'qd.description '
 
-                    'from descriptors_quant as qd '
-                    'left outer join descriptors_inst as id on id.id = qd.domain '
-                    'left outer join units as u on u.id = qd.unit '
-                    'join aspects as a on a.id = qd.aspect'
+                    'from descriptors_quant AS qd '
+                    'left outer join descriptors_inst AS id ON id.id = qd.domain '
+                    'left outer join units AS u on u.id = qd.unit '
+                    'join aspects AS a ON a.id = qd.aspect'
                     ), {}
 
         return default_flow('desc/quant', 'desc-quant', main_query, to_json, alt_query_fun=query)  # TODO likely need different args e.g. to filter by desc_inst

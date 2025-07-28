@@ -1,0 +1,4 @@
+id,label,iri
+1,unitless,http://uri.interlex.org/tgbugs/uris/readable/aspect/unit/unitless
+2,um,http://uri.interlex.org/tgbugs/uris/readable/aspect/unit/micrometer
+3,m,http://uri.interlex.org/tgbugs/uris/readable/aspect/unit/meter

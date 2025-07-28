@@ -108,7 +108,7 @@ def test():
     # q = client.get(f'{base}values/quant?dataset={dataset_uuid}&aspect=distance&return-query=true').data.decode()
     # q = client.get(f'{base}values/cat?object={actual_package_uuid}&prov=true&return-query=true').data.decode()
     # print(q)
-    breakpoint()
+    # breakpoint()
 
 
 def test_demo_load():
@@ -131,4 +131,4 @@ def test_demo_load():
         resp.content = resp.data
         resps.append(json.loads(resp.data.decode()))
 
-    breakpoint()
+    # breakpoint()
