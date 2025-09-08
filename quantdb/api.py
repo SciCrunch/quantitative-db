@@ -938,6 +938,11 @@ def make_app(db=None, name='quantdb-api-server', dev=False):
 
     bp = '/api/1/'
 
+    db_name = kwargs['database']
+    @app.route(f'{bp}/db-name')
+    def database_name():
+        return db_name
+
     def default_flow(endpoint, record_type, query_fun, json_fun, alt_query_fun=None):
         try:
             kwargs = getArgs(request, endpoint, dev=dev)
