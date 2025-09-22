@@ -110,7 +110,7 @@ Not-implemented are marked with =ni=.
 | inst-parent        |         |             |            |              |           |          |            |       |       |         |
 | subject            |         |             |            |              |           |          |            |       |       |         |
 | sample             |         |             |            |              |           |          |            |       |       |         |
-| include-equivalent | ni      | ni          | ni         | ni           | ni        | ni       | ni         | ni    | ni    | ni      |
+| include-equivalent |         |             |            |              |           |          |            |       |       |         |
 |--------------------+---------+-------------+------------+--------------+-----------+----------+------------+-------+-------+---------|
 | desc-cat           |         |             |            | x            |           | x        | q          |       | q     | q       |
 | value-cat          |         |             |            | x            |           |          | q          | x     | q     | q       |

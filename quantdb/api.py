@@ -90,22 +90,22 @@ def main_query(endpoint, kwargs):
     ep_select = {
         #'instances': 'im.dataset, im.id_formal, im.id_sam, im.id_sub, id.label',
         'values/inst': (
-            'im.dataset, '
-            'im.id_formal AS inst, '
-            'im.id_sam AS sample, '
-            'im.id_sub AS subject, '
+            'imout.dataset, '
+            'imout.id_formal AS inst, '
+            'imout.id_sam AS sample, '
+            'imout.id_sub AS subject, '
             'id.label AS desc_inst'
         ),
         'objects': (  # TODO probably some path metadata file type, etc. too
-            'im.dataset, '
+            'imout.dataset, '
             'o.id, '
             'o.id_type, '
             'o.id_file, '  # beware that there might be more than one id_file if a package is multi-file, but we usually ban those
             'oi.updated_transitive'
         ),
         'values/cat': (
-            'im.dataset, '
-            'im.id_formal AS inst, '
+            'imout.dataset, '
+            'imout.id_formal AS inst, '
             'id.label AS desc_inst, '
             'cdid.label AS domain, '
             'cd.range, '
@@ -115,8 +115,8 @@ def main_query(endpoint, kwargs):
         ),
         # TODO will want/need to return the shape of the value for these as well since that will be needed to correctly interpret the contents of the value field in the future
         'values/quant': (
-            'im.dataset, '
-            'im.id_formal AS inst, '
+            'imout.dataset, '
+            'imout.id_formal AS inst, '
             'id.label AS desc_inst, '
             'qd.aggregation_type AS agg_type, '
             'a.label AS aspect, '
@@ -125,8 +125,8 @@ def main_query(endpoint, kwargs):
         'values/cat-quant': (
             (
                 "'value-cat'   AS type, "
-                'im.dataset, '
-                'im.id_formal AS inst, '
+                'imout.dataset, '
+                'imout.id_formal AS inst, '
                 'id.label AS desc_inst, '
                 'cdid.label AS domain, '
                 'cd.range, '
@@ -137,7 +137,7 @@ def main_query(endpoint, kwargs):
                 'NULL::numeric AS value')
             , (
                 "'value-quant' AS type, im.dataset, "
-                'im.id_formal AS inst, id.label AS desc_inst, '
+                'imout.id_formal AS inst, id.label AS desc_inst, '
                 'NULL AS domain, '
                 'NULL::cat_range_type AS range, '
                 'qd.aggregation_type AS agg_type, '
@@ -232,7 +232,7 @@ LEFT OUTER JOIN aspects AS aspar ON aspar.id = ap.parent
 
     s_prov_objs = """
 ,
-im.dataset as prov_source_dataset, -- FIXME dataset_object maybe? or what?
+imout.dataset as prov_source_dataset, -- FIXME dataset_object maybe? or what?
 o.id AS prov_source_id,
 o.id_type AS prov_source_id_type,
 oi.updated_transitive AS prov_source_updated_transitive,
@@ -328,6 +328,7 @@ LEFT OUTER JOIN addresses AS ada ON ada.id = odq.addr_aspect
         'CROSS JOIN LATERAL get_child_closed_inst(icin.id) AS ic ON im.id = ic.child',
     )) if kw.parent_inst else ''
 
+    incequiv = gkw('include-equivalent')
     _q_all_objects = (
         # TODO this is retained for legacy purposes, the proper approach is to
         # find all instances and then use the subquery to find objects
@@ -336,7 +337,9 @@ LEFT OUTER JOIN addresses AS ada ON ada.id = odq.addr_aspect
         # both value cat/quant otherwise prov results can be weird
         # FIXME do the right thing for prov ...
         'JOIN values_quant AS qvo ON qvo.instance = im.id\n'
+        f"{('OR qvo.instance = eim.right_thing' if incequiv else '')}"
         'JOIN values_cat AS cvo ON cvo.instance = im.id\n'
+        f"{('OR cvo.instance = eim.right_thing' if incequiv else '')}"
         'JOIN objects AS o ON o.id = qvo.object OR cvo.object = o.id\n'
     )
     # these are still used in prov for now
@@ -344,12 +347,14 @@ LEFT OUTER JOIN addresses AS ada ON ada.id = odq.addr_aspect
         _q_all_objects if _where_cat else
         (
         'JOIN values_cat AS cvo ON cvo.instance = im.id\n'
+        f"{('OR cvo.instance = eim.right_thing' if incequiv else '')}"
         'JOIN objects AS o ON cvo.object = o.id\n'
         ))
     q_all_objects_quant = (
         _q_all_objects if _where_quant else
         (
         'JOIN values_quant AS qvo ON qvo.instance = im.id\n'
+        f"{('OR qvo.instance = eim.right_thing' if incequiv else '')}"
         'JOIN objects AS o ON o.id = qvo.object\n'
         ))
 
@@ -358,7 +363,9 @@ LEFT OUTER JOIN addresses AS ada ON ada.id = odq.addr_aspect
     _need_cv = sn.value_cat or kw.value_cat or sn.desc_cat or kw.desc_cat or kw.desc_inst or gkw('object') or kw.prov
     q_cat = '\n'.join((
         'FROM values_inst AS im',
-        'JOIN values_cat AS cv ON cv.instance = im.id' if _need_cv else '',
+        ('LEFT OUTER JOIN equiv_inst AS eim ON eim.left_thing = im.id' if incequiv else ''),
+        ('JOIN values_inst AS imout ON imout.id = im.id' + (' OR imout.id = eim.right_thing' if incequiv else '')),
+        f'JOIN values_cat AS cv ON cv.instance = im.id{(" OR cv.instance = eim.right_thing" if incequiv else "")}' if _need_cv else '',
         '\n'.join((
             'JOIN descriptors_inst AS idin',
             'CROSS JOIN LATERAL get_child_closed_desc_inst(idin.id) AS idc ON im.desc_inst = idc.child -- FIXME',
@@ -397,7 +404,9 @@ LEFT OUTER JOIN addresses AS ada ON ada.id = odq.addr_aspect
     _need_qv = sn.value_quant or kw.value_quant or sn.desc_quant or kw.desc_quant or kw.desc_inst or gkw('object') or kw.prov
     _q_quant = (
         'FROM values_inst AS im',
-        'JOIN values_quant AS qv ON qv.instance = im.id' if _need_qv else '',
+        ('LEFT OUTER JOIN equiv_inst AS eim ON eim.left_thing = im.id' if incequiv else ''),
+        ('JOIN values_inst AS imout ON imout.id = im.id' + (' OR imout.id = eim.right_thing' if incequiv else '')),
+        f'JOIN values_quant AS qv ON qv.instance = im.id{(" OR qv.instance = eim.right_thing" if incequiv else "")}' if _need_qv else '',
         '\n'.join((
             'JOIN descriptors_inst AS idin',
             'CROSS JOIN LATERAL get_child_closed_desc_inst(idin.id) AS idc ON im.desc_inst = idc.child -- FIXME',
