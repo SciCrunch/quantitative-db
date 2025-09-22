@@ -108,6 +108,25 @@ INSERT INTO addresses (addr_type, addr_field) VALUES
 ('tabular-header', 'y_pix'),
 ('tabular-header', 'y_pix_lvl'),
 
+-- sds metadata sources
+('tabular-header', 'subject_id'),
+('tabular-header', 'sample_id'),
+('tabular-header', 'site_id'),
+('tabular-header', 'species'),
+('tabular-header', 'sample_type'),
+('tabular-header', 'site_type'),
+
+-- vagus scaffold
+('tabular-header', 'max_coord'),
+('tabular-header', 'min_coord'),
+('tabular-header', 'rotation_1'),
+('tabular-header', 'rotation_2'),
+('tabular-header', 'rotation_3'),
+('tabular-header', 'scale'),
+('tabular-header', 'translation_x'),
+('tabular-header', 'translation_y'),
+('tabular-header', 'translation_z'),
+
 -- curation export paths
 ('json-path-with-types', '#/curation-export/subjects/#int/subject_id'),
 ('json-path-with-types', '#/curation-export/subjects/#int/species#translate_species'),
@@ -120,6 +139,7 @@ INSERT INTO addresses (addr_type, addr_field) VALUES
 
 INSERT INTO units (iri, label) VALUES
 ('http://uri.interlex.org/tgbugs/uris/readable/aspect/unit/um2', 'um2'),
+('http://uri.interlex.org/tgbugs/uris/readable/aspect/unit/degree', 'degree'), -- REMINDER for ontology ids we do not use plurals
 -- XXX FIXME pixels these are count-of-thing that likely need to be handled separately that is frogs, sheep in field etc. to avoid mirroring hierarchy
 ('http://uri.interlex.org/tgbugs/uris/readable/aspect/unit/pixel', 'pixel'),
 ('http://uri.interlex.org/tgbugs/uris/readable/aspect/unit/pixel-9um', 'pixel-9um'),
@@ -135,11 +155,20 @@ INSERT INTO aspects (iri, label) VALUES
 ('http://uri.interlex.org/tgbugs/uris/readable/aspect/centroid', 'centroid'),
 -- distance
 ('http://uri.interlex.org/tgbugs/uris/readable/aspect/distance-along-axis', 'distance-along-axis'),
+('http://uri.interlex.org/tgbugs/uris/readable/aspect/translation', 'translation'),
+('http://uri.interlex.org/tgbugs/uris/readable/aspect/translation-along-axis', 'translation-along-axis'), -- FIXME TODO scalar components of vectors are not vectors ... they have some other relationship, not subClassOf, probably we want translation -> translation-scalar and translation-vector
+('http://uri.interlex.org/tgbugs/uris/readable/aspect/translation-x', 'translation-x'),
+('http://uri.interlex.org/tgbugs/uris/readable/aspect/translation-y', 'translation-y'),
+('http://uri.interlex.org/tgbugs/uris/readable/aspect/translation-z', 'translation-z'),
+
 ('http://uri.interlex.org/tgbugs/uris/readable/aspect/centroid-x', 'centroid-x'), -- FIXME technically this is part of a cenroid aspects but vectors ...
 ('http://uri.interlex.org/tgbugs/uris/readable/aspect/centroid-y', 'centroid-y'), -- FIXME technically this is part of a cenroid aspects but vectors ...
 ('http://uri.interlex.org/tgbugs/uris/readable/aspect/radius', 'radius'),
 ('http://uri.interlex.org/tgbugs/uris/readable/aspect/radius/from/parent/centroid', 'radius-from-parent-centroid'), -- from-parent-instance-cendroid but instance is implied
 ('http://uri.interlex.org/tgbugs/uris/readable/aspect/perimeter', 'perimeter'),
+
+('http://uri.interlex.org/tgbugs/uris/readable/aspect/distance-via-abi-vagus-scaffold', 'distance-via-abi-vagus-scaffold'),
+('http://uri.interlex.org/tgbugs/uris/readable/aspect/distance-via-abi-vagus-scaffold-v1', 'distance-via-abi-vagus-scaffold-v1'),
 
 ('http://uri.interlex.org/tgbugs/uris/readable/aspect/area', 'area'),
 
@@ -147,6 +176,12 @@ INSERT INTO aspects (iri, label) VALUES
 
 ('http://uri.interlex.org/tgbugs/uris/readable/aspect/angle', 'angle'),
 ('http://uri.interlex.org/tgbugs/uris/readable/aspect/angle/from/parent/centroid', 'angle-from-parent-centroid'), -- FIXME -from- implies we need context for these
+
+('http://uri.interlex.org/tgbugs/uris/readable/aspect/rotation', 'rotation'),
+('http://uri.interlex.org/tgbugs/uris/readable/aspect/rotation-around-axis', 'rotation-around-axis'),
+('http://uri.interlex.org/tgbugs/uris/readable/aspect/rotation-x', 'rotation-x'),
+('http://uri.interlex.org/tgbugs/uris/readable/aspect/rotation-y', 'rotation-y'),
+('http://uri.interlex.org/tgbugs/uris/readable/aspect/rotation-z', 'rotation-z'),
 
 -- placeholder hierarchy until i can update desc quant to allow a second desc_inst
 
@@ -174,20 +209,53 @@ INSERT INTO aspects (iri, label) VALUES
 ('http://uri.interlex.org/tgbugs/uris/readable/aspect/area/fiber/myelinated', 'area-fiber-myelinated'),
 ('http://uri.interlex.org/tgbugs/uris/readable/aspect/area/fiber/unmyelinated', 'area-fiber-unmyelinated'),
 ('http://uri.interlex.org/tgbugs/uris/readable/aspect/area/fiber/chat', 'area-fiber-chat'),
-('http://uri.interlex.org/tgbugs/uris/readable/aspect/area/fiber/nav', 'area-fiber-nav')
+('http://uri.interlex.org/tgbugs/uris/readable/aspect/area/fiber/nav', 'area-fiber-nav'),
+
+-- duration
+
+('http://uri.interlex.org/tgbugs/uris/readable/aspect/duration/duration', 'duration'),
+('http://uri.interlex.org/tgbugs/uris/readable/aspect/duration/age', 'age'),
+('http://uri.interlex.org/tgbugs/uris/readable/aspect/duration/age/since/birth', 'age-since-birth'),
+('http://uri.interlex.org/tgbugs/uris/readable/aspect/duration/age/since/zygote', 'age-since-zygote'),
+('http://uri.interlex.org/tgbugs/uris/readable/aspect/duration/age/since/naming', 'age-since-naming'),
+
+-- time (duration since agreed upon reference points)
+('http://uri.interlex.org/tgbugs/uris/readable/aspect/duration/since', 'time-system'), -- since epoch
+('http://uri.interlex.org/tgbugs/uris/readable/aspect/duration/since/unix-epoch', 'unix-epoch'),
+('http://uri.interlex.org/tgbugs/uris/readable/aspect/duration/since/common-era-iso', 'common-era-iso'), -- confusingly 0000-01-01 is January 1st 1 BCE, so BCE dates are negative (non-positive) iso dates |YYYY -1| which is horrible for notation
+-- XXX things like date of birth are properly aspects of a particular type of event involving the subject ...
+
+-- mass weight
+
+('http://uri.interlex.org/tgbugs/uris/readable/aspect/mass', 'mass'),
+('http://uri.interlex.org/tgbugs/uris/readable/aspect/weight', 'weight')
 
 ;
 
 INSERT INTO aspect_parent (parent, id) VALUES
 (aspect_from_label('distance'), aspect_from_label('radius')),
 (aspect_from_label('distance'), aspect_from_label('perimeter')),
-(aspect_from_label('angle'), aspect_from_label('angle-from-parent-centroid')),
 (aspect_from_label('radius'), aspect_from_label('radius-from-parent-centroid')),
+(aspect_from_label('angle'), aspect_from_label('angle-from-parent-centroid')),
+(aspect_from_label('angle'), aspect_from_label('rotation')),
+(aspect_from_label('rotation'), aspect_from_label('rotation-around-axis')),
+(aspect_from_label('rotation-around-axis'), aspect_from_label('rotation-x')),
+(aspect_from_label('rotation-around-axis'), aspect_from_label('rotation-y')),
+(aspect_from_label('rotation-around-axis'), aspect_from_label('rotation-z')),
 
 (aspect_from_label('position'), aspect_from_label('centroid')),
 (aspect_from_label('distance'), aspect_from_label('distance-along-axis')),
 (aspect_from_label('distance-along-axis'), aspect_from_label('centroid-x')), -- technically correct but annoying to find due to needing partOf or similar
 (aspect_from_label('distance-along-axis'), aspect_from_label('centroid-y')), -- and due to lacking vectors atm
+
+(aspect_from_label('distance'), aspect_from_label('translation')),
+(aspect_from_label('distance-along-axis'), aspect_from_label('translation-along-axis')),
+(aspect_from_label('translation-along-axis'), aspect_from_label('translation-x')),
+(aspect_from_label('translation-along-axis'), aspect_from_label('translation-y')),
+(aspect_from_label('translation-along-axis'), aspect_from_label('translation-z')),
+
+(aspect_from_label('distance-vagus-normalized'), aspect_from_label('distance-via-abi-vagus-scaffold')),
+(aspect_from_label('distance-via-abi-vagus-scaffold'), aspect_from_label('distance-via-abi-vagus-scaffold-v1')),
 
 -- XXX placeholders
 
@@ -215,7 +283,18 @@ INSERT INTO aspect_parent (parent, id) VALUES
 (aspect_from_label('area-fiber'), aspect_from_label('area-fiber-myelinated')),
 (aspect_from_label('area-fiber'), aspect_from_label('area-fiber-unmyelinated')),
 (aspect_from_label('area-fiber'), aspect_from_label('area-fiber-chat')),
-(aspect_from_label('area-fiber'), aspect_from_label('area-fiber-nav'))
+(aspect_from_label('area-fiber'), aspect_from_label('area-fiber-nav')),
+
+-- time
+
+(aspect_from_label('duration'), aspect_from_label('age')),
+(aspect_from_label('duration'), aspect_from_label('time-system')),
+(aspect_from_label('age'), aspect_from_label('age-since-birth')),
+(aspect_from_label('age'), aspect_from_label('age-since-zygote')),
+(aspect_from_label('age'), aspect_from_label('age-since-naming')),
+
+(aspect_from_label('time-system'), aspect_from_label('unix-epoch')),
+(aspect_from_label('time-system'), aspect_from_label('common-era-iso'))
 
 --(aspect_from_label('parent'), aspect_from_label('child')),
 
@@ -246,6 +325,62 @@ desc_inst_from_label('fiber-cross-section'),
 aspect_from_label('diameter'),
 unit_from_label('um'),
 'max'),
+
+-- scaffold mapping
+
+('distance-via-abi-vagus-scaffold-v1 max',
+desc_inst_from_label('nerve'),
+aspect_from_label('distance-via-abi-vagus-scaffold-v1'),
+unit_from_label('unitless'),
+'max'),
+
+('distance-via-abi-vagus-scaffold-v1 min',
+desc_inst_from_label('nerve'),
+aspect_from_label('distance-via-abi-vagus-scaffold-v1'),
+unit_from_label('unitless'),
+'min'),
+
+('rotation around axis x in degrees',
+null,
+aspect_from_label('rotation-around-axis-x'),
+unit_from_label('degrees'),
+'instance'),
+
+('rotation around axis y in degrees',
+null,
+aspect_from_label('rotation-around-axis-y'),
+unit_from_label('degrees'),
+'instance'),
+
+('rotation around axis z in degrees',
+null,
+aspect_from_label('rotation-around-axis-z'),
+unit_from_label('degrees'),
+'instance'),
+
+('translation-x in um',
+null,
+aspect_from_label('translation-x'),
+unit_from_label('um'),
+'instance'),
+
+('translation-y in um',
+null,
+aspect_from_label('translation-y'),
+unit_from_label('um'),
+'instance'),
+
+('translation-z in um',
+null,
+aspect_from_label('translation-z'),
+unit_from_label('um'),
+'instance'),
+
+('scale',
+null,
+aspect_from_label('scale'),
+unit_from_label('unitless'),
+'instance'),
 
 -- aspect of type in context
 
@@ -443,6 +578,8 @@ INSERT INTO descriptors_cat (label, domain, range) VALUES
 ;
 
 INSERT INTO descriptors_inst (iri, label) VALUES
+('https://uri.interlex.org/tgbugs/uris/readable/quantdb/classes/simulation', 'simulation'), -- FIXME HACK placeholder to deal with virtual entities which is really an orthogonal axis here :/ because right now this causes all sorts of domain violations
+
 ('https://uri.interlex.org/tgbugs/uris/readable/quantdb/classes/myelin', 'myelin'),
 ('https://uri.interlex.org/tgbugs/uris/readable/quantdb/classes/myelin/cross-section', 'myelin-cross-section'),
 ('https://uri.interlex.org/tgbugs/uris/readable/quantdb/classes/extruded-plane', 'extruded-plane') -- for sites, no extra hierarchy yet
