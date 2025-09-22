@@ -2,13 +2,17 @@ import json
 import pathlib
 import sys
 from collections import defaultdict, Counter
+from itertools import chain
 
+import idlib
 import requests
+from dateutil import parser as dateparser
 from pyontutils.utils_fast import chunk_list
 from sparcur import objects as sparcur_objects  # register pathmeta type
 from sparcur.paths import Path
 from sparcur.utils import PennsieveId as RemoteId
 from sparcur.utils import fromJson, log as _slog, register_type
+from sparcur.idmap import identifier_indexes
 from sqlalchemy import create_engine
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Session
@@ -376,7 +380,11 @@ def proc_anat(rawind):
 
 _translate_species = {}
 _translate_species['ncbitaxon:9606'] = 'human'  # oof
+_translate_species['http://purl.obolibrary.org/obo/NCBITaxon_9606'] = 'human'
 def translate_species(v):
+    if isinstance(v, dict):
+        v = v['id']
+
     return _translate_species[v]
 
 
@@ -386,6 +394,7 @@ _translate_sample_type = {
     'segment': 'nerve-volume',
     'subsegment': 'nerve-volume',
     'section': 'nerve-cross-section',
+    'virtual': 'simulation',  # FIXME and here we see why I didn't want to do it this way, because it is a virtual something and we want the something
 }
 def translate_sample_type(v):
     return _translate_sample_type[v]
@@ -623,7 +632,16 @@ class InternalIds:
         q = queries
         self._q = queries
 
+
         self.addr_index = q.address_from_fadd_type_fadd('record-index', None)
+
+        self.addr_subject_id = q.address_from_fadd_type_fadd('tabular-header', 'subject_id')
+        self.addr_sample_id = q.address_from_fadd_type_fadd('tabular-header', 'sample_id')
+        self.addr_site_id = q.address_from_fadd_type_fadd('tabular-header', 'site_id')
+        self.addr_species = q.address_from_fadd_type_fadd('tabular-header', 'species')
+        self.addr_sample_type = q.address_from_fadd_type_fadd('tabular-header', 'sample_type')
+        self.addr_site_type = q.address_from_fadd_type_fadd('tabular-header', 'site_type')
+
         self.addr_suid = q.address_from_fadd_type_fadd('tabular-header', 'id_sub')
         self.addr_said = q.address_from_fadd_type_fadd('tabular-header', 'id_sam')
         self.addr_spec = q.address_from_fadd_type_fadd('tabular-header', 'species')
@@ -757,6 +775,7 @@ class InternalIds:
         self.id_fiber_cross_section = q.desc_inst_from_label('fiber-cross-section')
         self.id_myelin_cross_section = q.desc_inst_from_label('myelin-cross-section')
         self.id_extruded_plane = q.desc_inst_from_label('extruded-plane')
+        self.id_simulation = q.desc_inst_from_label('simulation')
         self.luid = {
             'human': self.id_human,
             'nerve': self.id_nerve,
@@ -765,6 +784,7 @@ class InternalIds:
             'fascicle-cross-section': self.id_fascicle_cross_section,
             'fiber-cross-section': self.id_fiber_cross_section,
             'extruded-plane': self.id_extruded_plane,
+            'simulation': self.id_simulation,
         }
 
         self.ct_mod = q.cterm_from_label('microct')  # lol ct ct
@@ -784,6 +804,7 @@ class Inserts:
     pass
 
 
+luinst = {}
 def ingest(dataset_uuid, extract_fun, session, commit=False, dev=False, values_args=None, **kwargs):
     """generic ingest workflow
     this_dataset_updated_uuid might not be needed in future,
@@ -806,6 +827,7 @@ def ingest(dataset_uuid, extract_fun, session, commit=False, dev=False, values_a
         make_voqd,
         make_values_cat,
         make_values_quant,
+        make_equiv_inst,
     ) = (
         extract_fun(dataset_uuid, **kwargs) if values_args is None else values_args
     )
@@ -880,10 +902,20 @@ def ingest(dataset_uuid, extract_fun, session, commit=False, dev=False, values_a
     # get all instances in a dataset since values_inst only includes instances we plan to insert
     # not those that were already inserted that we want to add values for
     ilt = q.insts_from_dataset(dataset_uuid)
-    luinst = {(str(dataset), id_formal): id for id, dataset, id_formal in ilt}
+    _luinst = {(str(dataset), id_formal): id for id, dataset, id_formal in ilt}
+    luinst.update(_luinst)
+    equiv_inst = make_equiv_inst(i, luinst)
+
     values_parents = make_values_parents(luinst)
     values_cv = make_values_cat(this_dataset_updated_uuid, i, luinst)
     values_qv = make_values_quant(this_dataset_updated_uuid, i, luinst)
+
+    if equiv_inst:
+        for chunk in chunk_list(equiv_inst, batchsize):
+            vt, params = makeParamsValues(chunk)
+            session.execute(sql_text(f'INSERT INTO equiv_inst VALUES {vt}{ocdn}'), params)
+            if commit:
+                session.commit()
 
     if values_parents:
         for chunk in chunk_list(values_parents, batchsize):
@@ -1238,6 +1270,7 @@ def extract_reva_ft(dataset_uuid, source_local=False, visualize=False):
         ]
         return values_qv
 
+    make_equiv_inst = lambda i, l: []
     return (
         updated_transitive,
         values_objects,
@@ -1249,6 +1282,7 @@ def extract_reva_ft(dataset_uuid, source_local=False, visualize=False):
         make_voqd,
         make_values_cat,
         make_values_quant,
+        make_equiv_inst,
     )
 
     # this is where things get annoying with needing selects on instance measured
@@ -1477,6 +1511,7 @@ def extract_demo_jp2(dataset_uuid, source_local=False):
         values_qv = []
         return values_qv
 
+    make_equiv_inst = lambda i, l: []
     return (
         updated_transitive,
         values_objects,
@@ -1488,6 +1523,7 @@ def extract_demo_jp2(dataset_uuid, source_local=False):
         make_voqd,
         make_values_cat,
         make_values_quant,
+        make_equiv_inst,
     )
 
 
@@ -1733,6 +1769,7 @@ def extract_demo(dataset_uuid, source_local=True):
         ]
         return values_qv
 
+    make_equiv_inst = lambda i, l: []
     return (
         updated_transitive,
         values_objects,
@@ -1744,6 +1781,7 @@ def extract_demo(dataset_uuid, source_local=True):
         make_voqd,
         make_values_cat,
         make_values_quant,
+        make_equiv_inst,
     )
 
 
@@ -2186,6 +2224,7 @@ def extract_fasc_fib(dataset_uuid, source_local=True):
         # (value, object, desc_inst, desc_quant, instance, value_blob)
         return values_qv
 
+    make_equiv_inst = lambda i, l: []
     return (
         updated_transitive,
         values_objects,
@@ -2197,6 +2236,7 @@ def extract_fasc_fib(dataset_uuid, source_local=True):
         make_voqd,
         make_values_cat,
         make_values_quant,
+        make_equiv_inst,
     )
 
 
@@ -2233,6 +2273,9 @@ def extract_template(dataset_uuid, source_local=True):
     def make_values_quant(this_dataset_updated_uuid, i, luinst):
         return values_qv
 
+    def make_equiv_inst(i, luinst):
+        return equiv_inst
+
     return (
         updated_transitive,
         values_objects,
@@ -2244,6 +2287,7 @@ def extract_template(dataset_uuid, source_local=True):
         make_voqd,
         make_values_cat,
         make_values_quant,
+        make_equiv_inst,
     )
 
 
@@ -2292,6 +2336,335 @@ def ingest_reva_ft_all(session, source_local=False, do_insert=True, batch=False,
             ingest(duuid, None, session, commit=commit, dev=dev, values_args=vargs)
 
 
+def ingest_entity_metadata_all(session, source_local=False, do_insert=True, batch=False, commit=False, dev=False):
+    do_all = False
+    uuidvs = '031598b5-88eb-44eb-ba70-67ad1c2fe36a'
+    _uuids = [
+        # referenced by scaffolds FIXME make it so we don't need to do it this way
+        '2a3d01c0-39d3-464a-8746-54c9d67ebe0f',  # f006
+        'dfb4a04a-6f9f-4b8b-97d1-f06b97c448d0',  # test M00
+        uuidvs,
+    ]
+    if do_all:
+        if source_local:
+            with open('/tmp/curation-export-2025-09-16T13:07:38-07:00.json', 'rt') as f:
+                blob = json.load(f)
+        else:
+            url = 'https://cassava.ucsd.edu/sparc/preview/archive/summary/LATEST/curation-export.json'
+            resp = requests.get(url)
+            blob = resp.json()
+
+        ir = fromJson(blob)
+
+        _dblobs = ir['datasets']
+    else:
+        _dblobs = []
+        for _uuid in _uuids:
+            url = f'https://cassava.ucsd.edu/sparc/preview/archive/summary/LATEST/snapshot/{_uuid}/curation-export.json'
+            _dblobs.append(requests.get(url).json())
+
+    dblobs = [d for d in _dblobs
+              if
+              [u for u in _uuids if u in d['id']]  # vagus scaffolds
+              #'- f0' in d['meta']['folder_name'] or 'Scaffold' in d['meta']['folder_name']
+              ]
+    dindex = {}
+    dids = []
+    for d in dblobs:
+        did = RemoteId(d['id'])
+        dids.append(did)
+        dindex[did] = d
+
+    uuids = [d.uuid for d in dids]
+    # FIXME TODO need to get the package uuid for these, probably from sfi?
+    subjects = [(RemoteId(d['id']), s) for d in dblobs if 'subjects' in d for s in d['subjects']]
+    samples = [(RemoteId(d['id']), s) for d in dblobs if 'samples' in d for s in d['samples']]
+    sites = [(RemoteId(d['id']), s) for d in dblobs if 'sites' in d for s in d['sites']]
+
+    iicache = pathlib.Path('~/.cache/quantdb/identifier-index/').expanduser()
+    @idlib.cache.cache(iicache, ser='pickle', clear_cache=False, create=True)
+    def get_ii():
+        iout = big_did, *indexes, doi_did, doi_pat = identifier_indexes()
+        return iout
+
+    big_did, *indexes, doi_did, doi_pat = get_ii()
+
+    for did, s in subjects + samples:
+        k = 'also_in_dataset_doi'
+        k2 = 'also_in_dataset'
+        if k in s and k2 not in s:
+            d = idlib.Doi(s[k])
+            adid = doi_did[d]
+            s['also_in_dataset'] = adid
+
+    sources = {}
+    uts = {}
+    rsession = requests.Session()
+    try:
+        for did in dids:
+            url = f'https://cassava.ucsd.edu/sparc/preview/archive/summary/LATEST/snapshot/{did.uuid}/path-metadata.json'
+            resp = rsession.get(url)
+            j = resp.json()
+            updated_transitive = ''
+            for i, pb in enumerate(j['data']):
+                if i > 0 and pb['timestamp_updated'] > updated_transitive:
+                    updated_transitive = pb['timestamp_updated']
+
+                # FIXME also len(path.parts) == 1 ...
+                if pathlib.PurePath(pb['dataset_relative_path']).stem in ('subjects', 'samples', 'sites'):
+                    ss = pathlib.PurePath(pb['dataset_relative_path']).stem
+                    sources[did, ss] = RemoteId(pb['remote_id'], file_id=pb['remote_inode_id'])
+
+            uts[did] = dateparser.parse(updated_transitive)  # probably convert to ir?
+    finally:
+        rsession.close()
+
+    voqd_mapping_0315 = {  # address to quant desc
+        # FIXME we need whatever "average" they can provide too ..
+        'max_coord': 'distance-via-abi-vagus-scaffold-v1 max',
+        'min_coord': 'distance-via-abi-vagus-scaffold-v1 min',
+        'rotation_1': 'rotation around axis x in degrees',  # FIXME ordering is wrong FIXME check units
+        'rotation_2': 'rotation around axis y in degrees',  # FIXME ordering is wrong FIXME check units
+        'rotation_3': 'rotation around axis z in degrees',  # FIXME ordering is wrong FIXME check units
+        #'sample_anatomical_location': 'vagus nerve',
+        #'sample_experimental_group': 'microct',
+        'scale': 'scale',
+        'translation_x': 'translation-x in um',  # FIXME check units
+        'translation_y': 'translation-y in um',  # FIXME check units
+        'translation_z': 'translation-z in um',  # FIXME check units
+    }
+    voqd_mapping = {
+        'plane_width_microns': 'width um',  # TODO
+        'age': 'FIXME units disaster',
+        'distance_from_nodose_cm': 'distance cm',  # TODO
+    }
+    uvals = set()
+    def process_record(did, record):
+        # TODO we don't retain the original tabular header for these, see if it is ok
+        if did.uuid == uuidvs:
+            # FIXME sub/sam/site
+            for address, desc_quant in voqd_mapping_0315.items():
+                if address in record:
+                    value = record[address]
+                    yield address, desc_quant, value
+        else:
+            pass
+            #raise NotImplementedError('TODO')
+        uvals.update(record)
+
+    def extract_entities(dataset_uuid, source_local=False):
+        # FIXME merge this with ext_values impl?
+        did = RemoteId(dataset_uuid, type='dataset')
+        updated_transitive = uts[did]
+        #dair = dindex[did]
+        parents = []
+        objects = {did.uuid: {'id_type': did.type}}
+        dataset_objects = []
+
+        spec_void = set()
+        spec_equiv_inst = set()
+
+        values_q = []
+        values_c = []
+
+        o_subjects = {}
+        o_samples = {}
+        o_sites = {}
+        sample_subject = {s['sample_id']: s['subject_id'] for _, s in samples if _ == did}
+        site_subject = {s['site_id']: (s['specimen_id'] if s['specimen_id'].startswith('sub-') else sample_subject[s['specimen_id']])
+                        for _, s in sites if _ == did}
+        # TODO need also in dataset mapping here to insert
+        for _, ent in chain(subjects, samples, sites):
+            if _ != did:
+                continue
+
+            rec = {}
+            if 'sample_id' in ent:
+                k = 'sample_id'
+                kty = 'sample_type'
+                et = 'sample'
+                eid = ent[k]
+                o_samples[did, eid] = rec
+                p = ent['was_derived_from'] if 'was_derived_from' in ent else ent['subject_id']  # FIXME wdf needs to be always required
+                if isinstance(p, list):  # FIXME yeah this is real, and we likely need to convert all parents cases to be a list
+                    for _p in p:
+                        parents.append((did, eid, _p))
+                else:
+                    parents.append((did, eid, p))
+                if kty in ent:
+                    if did.uuid == uuidvs:
+                        # FIXME virtual x issues
+                        rec['desc_inst'] = 'nerve-volume'
+                    else:
+                        rec['desc_inst'] = translate_sample_type(ent[kty])
+                else:
+                    if did.uuid == uuidvs:
+                        rec['desc_inst'] = translate_sample_type('segment')
+                    else:
+                        raise NotImplementedError('kind of have to fill this in')
+
+                    log.error(f'{et} missing critical field {kty}')
+
+                rec['id_sub'] = ent['subject_id']
+                rec['id_sam'] = eid
+            elif 'site_id' in ent:
+                k = 'site_id'
+                kty = 'site_type'
+                et = 'site'
+                eid = ent[k]
+                o_sites[did, eid] = rec
+                parents.append((did, eid, ent['specimen_id']))
+                rec['desc_inst'] = translate_site_type(ent[kty])
+                rec['id_sub'] = site_subject[ent['site_id']]
+                spec_id = ent['specimen_id']
+                if spec_id.startswith('sam-'):
+                    rec['id_sam'] = spec_id
+            elif 'subject_id' in ent:
+                k = 'subject_id'
+                kty = 'species'
+                et = 'subject'
+                eid = ent[k]
+                o_subjects[did, eid] = rec
+                if kty in ent:
+                    rec['desc_inst'] = translate_species(ent[kty])
+                else:
+                    if did.uuid == uuidvs:
+                        rec['desc_inst'] = 'human'
+                    else:
+                        breakpoint()
+                        raise NotImplementedError('kind of have to fill this in')
+
+                    log.error(f'{et} missing critical field {kty}')
+
+                rec['id_sub'] = eid
+            else:
+                log.error(f'not implemented {sorted(ent)}')
+                continue
+
+            rec['type'] = et
+
+            if 'also_in_dataset' in ent:
+                l = did, eid
+                aidk = f'also_in_dataset_{k}'
+                r = RemoteId(ent['also_in_dataset']), (ent[aidk] if aidk in ent else ent[k])
+                spec_equiv_inst.add((l, r))
+
+            package = sources[did, et + 's']
+            if package.uuid not in objects:
+                objects[package.uuid] = {'id_type': package.type, 'id_file': package.file_id}
+                dataset_objects.append((did.uuid, package.uuid))
+
+            spec_void.add((package, rec['desc_inst'], k, kty))
+
+            for addr, desc_quant, value in process_record(did, ent):
+                qrow = value, package.uuid, rec['desc_inst'], addr, (did.uuid, eid), value
+                values_q.append(qrow)
+
+        instances = {**o_subjects, **o_samples, **o_sites}
+        #instances = {((d if type(d) == str else d.uuid), idf): v for (d, idf), v in _instances.items()}
+        values_objects = values_objects_from_objects(objects)
+        values_dataset_object = dataset_objects
+
+        def make_values_instances(i):
+            values_instances = [
+                (d.uuid,
+                 id_formal,
+                 inst['type'],
+                 i.luid[inst['desc_inst']],
+                 inst['id_sub'] if 'id_sub' in inst else None,
+                 inst['id_sam'] if 'id_sam' in inst else None,
+                )
+                for (d, id_formal), inst in instances.items()
+            ]
+            return values_instances
+
+        def make_values_parents(luinst):
+            values_parents = [(luinst[d.uuid, child], luinst[d.uuid, parent]) for d, child, parent in parents]
+            return values_parents
+
+        def make_void(this_dataset_updated_uuid, i):
+            luaddr = {
+                'subject_id': i.addr_subject_id,
+                'sample_id': i.addr_sample_id,
+                'site_id': i.addr_site_id,
+                'species': i.addr_species,
+                'sample_type': i.addr_sample_type,
+                'site_type': i.addr_site_type,
+            }
+            ludi = {
+                'homo sapiens': i.id_human,
+                'segment': i.id_nerve_volume,  # FIXME this mapping is dataset dependent
+            }
+            void = [(o.uuid, i.luid[di], luaddr[ai], luaddr[at]) for (o, di, ai, at) in sorted(spec_void)]
+            return void
+
+        def make_vocd(this_dataset_updated_uuid, i):
+            vocd = []
+            return vocd
+
+        inv_voqd = {}
+        def make_voqd(this_dataset_updated_uuid, i):
+            # this is effectively where we specify the schema
+            voqd = []
+            for obj_uuid in list(objects)[1:]:  # FIXME hack to skip dataset  # FIXME must filter by dataset
+                for a, qd in voqd_mapping_0315.items():
+                    iqd, ia = i.reg_qd(qd), i.reg_addr(a)
+                    voqd.append((obj_uuid, iqd, ia))
+
+            inv = {(i._q._inv['addr', a]['fadd'], True):(q, a) for u, q, a in voqd}  # FIXME u in objs_this_dataset probably?
+            inv_voqd.update(inv)
+            return voqd
+
+        def make_values_cat(this_dataset_updated_uuid, i, luinst):
+            values_cv = []
+            return values_cv
+
+        def make_values_quant(this_dataset_updated_uuid, i, luinst):
+            values_qv = []
+            for value, o_uuid, di, addr, inst_ident, value_blob in values_q:
+                if (addr, True) not in inv_voqd:
+                    breakpoint()
+
+                desc_quant, _ = inv_voqd[addr, True]
+                desc_inst = i.luid[di]  # i._q._inv['id', di]
+                values_qv.append(
+                    (value,
+                     o_uuid,
+                     desc_inst,
+                     desc_quant,
+                     luinst[inst_ident],
+                     value_blob,))
+
+            return values_qv
+
+        def make_equiv_inst(i, luinst):
+            # FIXME TODO we may have to query for the other instance id
+            # OR we may have to insert a new one to avoid order dependencies
+            # at the expense of increasing the number of queries we need
+            # XXX for now make sure to ingest multiple
+            return [(luinst[lo.uuid, lf], luinst[ro.uuid, rf]) for (lo, lf), (ro, rf) in spec_equiv_inst]
+
+            breakpoint()
+            pass
+
+        return (
+            updated_transitive,
+            values_objects,
+            values_dataset_object,
+            make_values_instances,
+            make_values_parents,
+            make_void,
+            make_vocd,
+            make_voqd,
+            make_values_cat,
+            make_values_quant,
+            make_equiv_inst,
+        )
+
+    for did in dids:
+        ingest(did.uuid, extract_entities, session, source_local=source_local, commit=commit, dev=dev)
+
+
 def main(source_local=False, commit=False, echo=False):
     from quantdb.config import auth
 
@@ -2302,11 +2675,21 @@ def main(source_local=False, commit=False, echo=False):
     engine.echo = echo
     session = Session(engine)
 
-    do_all = False
+    do_all = True
+    do_ent_all = False or do_all
     do_fasc_fib = False or do_all
     do_reva_ft = False or do_all
     do_demo_jp2 = False or do_all
     do_demo = False or do_all
+
+    if do_ent_all:
+        try:
+            ingest_entity_metadata_all(session, source_local=source_local, do_insert=True, commit=commit, dev=True)
+        except Exception as e:
+            session.rollback()
+            session.close()
+            engine.dispose()
+            raise e
 
     if do_fasc_fib:
         try:
