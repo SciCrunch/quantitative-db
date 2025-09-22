@@ -60,6 +60,7 @@ fi
 psql -U ${admin_user} -h ${HOST} -p $PORT -d $DATABASE -f "${SQL}/schemas.sql" -v ON_ERROR_STOP=on
 psql -U ${admin_user} -h ${HOST} -p $PORT -d $DATABASE -f "${SQL}/tables.sql" -v ON_ERROR_STOP=on
 psql -U ${admin_user} -h ${HOST} -p $PORT -d $DATABASE -f "${SQL}/permissions.sql" -v ON_ERROR_STOP=on -v database=$DATABASE -v perm_user=${qdb_user}
+psql -U ${admin_user} -h ${HOST} -p $PORT -d $DATABASE -f "${SQL}/inserts.sql" -v ON_ERROR_STOP=on
 
 fi
 
