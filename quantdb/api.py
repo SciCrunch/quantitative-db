@@ -443,7 +443,7 @@ LEFT OUTER JOIN addresses AS ada ON ada.id = odq.addr_aspect
     _objects_c = (
         'JOIN obj_desc_cat AS odc ON odc.desc_cat = cd.id\n'
         'JOIN objects AS o ON o.id = odc.object\n'
-        'JOIN dataset_object AS im ON im.object = o.id\n'
+        'JOIN dataset_object AS imout ON imout.object = o.id\n'
         'LEFT OUTER JOIN objects_internal AS oi ON oi.id = o.id\n'
     ) if sn.objects or gkw('dataset') else ''
 
@@ -467,7 +467,7 @@ LEFT OUTER JOIN addresses AS ada ON ada.id = odq.addr_aspect
     _objects_q = (
         'JOIN obj_desc_quant AS odq ON odq.desc_quant = qd.id\n'
         'JOIN objects AS o ON o.id = odq.object\n'
-        'JOIN dataset_object AS im ON im.object = o.id\n'
+        'JOIN dataset_object AS imout ON imout.object = o.id\n'
         'LEFT OUTER JOIN objects_internal AS oi ON oi.id = o.id\n'
     ) if sn.objects or gkw('dataset') else ''
 
@@ -512,7 +512,7 @@ LEFT OUTER JOIN addresses AS ada ON ada.id = odq.addr_aspect
         )
         if endpoint == 'objects':
             oq_rest = (
-                'JOIN dataset_object AS im ON im.object = o.id\n'
+                'JOIN dataset_object AS imout ON imout.object = o.id\n'
                 'LEFT OUTER JOIN objects_internal AS oi ON oi.id = o.id\n')
             else_query = (
                 f'{select_cat or select_quant}\n'
