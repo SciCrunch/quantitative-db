@@ -27,17 +27,21 @@ logd = log.getChild('data')
 def setPS1(script__file__):
     try:
         text = 'Running ' + os.path.basename(script__file__)
-        os.sys.stdout.write('\x1b]2;{}\x07\n'.format(text))
+        sys.stdout.write('\x1b]2;{}\x07\n'.format(text))
     except AttributeError as e:
         log.exception(e)
 
 
-def dbUri(dbuser, host, port, database):
+def dbUri(dbuser, host, port, database, password=None):
     if hasattr(sys, 'pypy_version_info'):
         dialect = 'psycopg2cffi'
     else:
         dialect = 'psycopg2'
-    return f'postgresql+{dialect}://{dbuser}@{host}:{port}/{database}'
+
+    if password:
+        return f'postgresql+{dialect}://{dbuser}:{password}@{host}:{port}/{database}'
+    else:
+        return f'postgresql+{dialect}://{dbuser}@{host}:{port}/{database}'
 
 
 # from pyontutils.utils_fast import isoformat

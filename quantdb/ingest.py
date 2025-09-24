@@ -1284,7 +1284,6 @@ def extract_reva_ft(dataset_uuid, source_local=False, visualize=False):
         make_values_quant,
         make_equiv_inst,
     )
-
     # this is where things get annoying with needing selects on instance measured
 
 
@@ -2308,7 +2307,6 @@ def ingest_fasc_fib(session, source_local=True, do_insert=True, commit=False, de
 
 
 def ingest_reva_ft_all(session, source_local=False, do_insert=True, batch=False, commit=False, dev=False):
-
     dataset_uuids = (
         '2a3d01c0-39d3-464a-8746-54c9d67ebe0f',  # f006
     )
