@@ -1,0 +1,3 @@
+id,value_open,value_controlled_label,object,object_type,desc_inst_label,desc_cat_label,instance_formal_id
+2,microct,microct,b0329456-763d-4b25-aefc-e7810e4d2bfa,package,nerve-volume,hasDataAboutItModality,sam-test1
+3,microct,microct,e88608cb-e2d8-4b90-9345-96882ec142ff,package,nerve-volume,hasDataAboutItModality,sam-test2

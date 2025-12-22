@@ -1,0 +1,8 @@
+id,label,iri
+1,hack-associate-some-value,https://uri.interlex.org/tgbugs/uris/readable/quantdb/controlled/hack-associate-some-value
+2,chat,https://uri.interlex.org/tgbugs/uris/readable/quantdb/controlled/fascicleStainType/chat
+3,myelin,https://uri.interlex.org/tgbugs/uris/readable/quantdb/controlled/fascicleStainType/myelin
+4,neurofilament,https://uri.interlex.org/tgbugs/uris/readable/quantdb/controlled/fascicleStainType/neurofilament
+5,nerve,http://purl.obolibrary.org/obo/UBERON_0001021
+6,microct,https://uri.interlex.org/tgbugs/uris/readable/quantdb/controlled/microct
+7,controlled thing,https://uri.interlex.org/tgbugs/uris/readable/quantdb/controlled/thing

@@ -1,0 +1,649 @@
+# F006 Dataset Specific Mappings
+# This file defines the mappings specific to the F006 nerve dataset
+# Aligned with quantdb/ingest.py logic for path metadata and CSV ingestion
+
+# Dataset configuration
+dataset:
+  uuid: '2a3d01c0-39d3-464a-8746-54c9d67ebe0f'
+  name: 'F006 Pig Nerve Dataset'
+  metadata_urls:
+    curation_export: 'https://cassava.ucsd.edu/sparc/datasets/{uuid}/LATEST/curation-export.json'
+    path_metadata: 'https://cassava.ucsd.edu/sparc/datasets/{uuid}/LATEST/path-metadata.json'
+
+# Dataset-specific aspects
+aspects:
+  # Fiber classification aspects
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/identifier/instance
+    label: identifier-instance
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/position
+    label: position
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/centroid
+    label: centroid
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/distance-along-axis
+    label: distance-along-axis
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/centroid-x
+    label: centroid-x
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/centroid-y
+    label: centroid-y
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/radius
+    label: radius
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/radius/from/parent/centroid
+    label: radius-from-parent-centroid
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/perimeter
+    label: perimeter
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/area
+    label: area
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/angle
+    label: angle
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/angle/from/parent/centroid
+    label: angle-from-parent-centroid
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/diameter
+    label: diameter
+    description: Diameter measurement
+
+  # Fiber count aspects
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/count/fiber
+    label: count-fiber
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/count/fiber/a
+    label: count-fiber-a
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/count/fiber/a/alpha
+    label: count-fiber-a-alpha
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/count/fiber/a/beta
+    label: count-fiber-a-beta
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/count/fiber/a/gamma
+    label: count-fiber-a-gamma
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/count/fiber/a/delta
+    label: count-fiber-a-delta
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/count/fiber/b
+    label: count-fiber-b
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/count/fiber/c
+    label: count-fiber-c
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/count/fiber/myelinated
+    label: count-fiber-myelinated
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/count/fiber/unmyelinated
+    label: count-fiber-unmyelinated
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/count/fiber/chat
+    label: count-fiber-chat
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/count/fiber/nav
+    label: count-fiber-nav
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/count/estimated-fiber
+    label: count-estimated-fiber
+
+  # Fiber area aspects
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/area/fiber
+    label: area-fiber
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/area/fiber/a
+    label: area-fiber-a
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/area/fiber/a/alpha
+    label: area-fiber-a-alpha
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/area/fiber/a/beta
+    label: area-fiber-a-beta
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/area/fiber/a/gamma
+    label: area-fiber-a-gamma
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/area/fiber/a/delta
+    label: area-fiber-a-delta
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/area/fiber/b
+    label: area-fiber-b
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/area/fiber/c
+    label: area-fiber-c
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/area/fiber/myelinated
+    label: area-fiber-myelinated
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/area/fiber/unmyelinated
+    label: area-fiber-unmyelinated
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/area/fiber/chat
+    label: area-fiber-chat
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/area/fiber/nav
+    label: area-fiber-nav
+
+# Dataset-specific units
+units:
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/unit/um2
+    label: um2
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/unit/pixel
+    label: pixel
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/unit/pixel-9um
+    label: pixel-9um
+  - iri: http://uri.interlex.org/tgbugs/uris/readable/aspect/unit/pixel-11um
+    label: pixel-11um
+
+# F006-specific descriptors
+descriptors:
+  instance_types:
+    # Subject/sample types
+    - iri: http://uri.interlex.org/ilx_0101431
+      label: human
+    - iri: http://uri.interlex.org/tgbugs/uris/readable/nervevolume
+      label: nerve-volume
+    # Cross-section descriptors
+    - iri: http://uri.interlex.org/ilx_0738300
+      label: fiber-cross-section
+    - iri: http://uri.interlex.org/ilx_0738299
+      label: fascicle-cross-section
+    - iri: http://uri.interlex.org/ilx_0738298
+      label: nerve-cross-section
+
+  quantitative:
+    # Fiber measurements
+    - label: fiber cross section area um2
+      domain: fiber-cross-section
+      aspect: area
+      unit: um2
+      aggregation_type: instance
+
+    - label: fiber cross section diameter um
+      domain: fiber-cross-section
+      aspect: diameter
+      unit: micrometer
+      aggregation_type: instance
+
+    - label: fiber cross section diameter um min
+      domain: fiber-cross-section
+      aspect: diameter
+      unit: micrometer
+      aggregation_type: min
+
+    - label: fiber cross section diameter um max
+      domain: fiber-cross-section
+      aspect: diameter
+      unit: micrometer
+      aggregation_type: max
+
+    # Fascicle measurements
+    - label: fascicle cross section area um2
+      domain: fascicle-cross-section
+      aspect: area
+      unit: um2
+      aggregation_type: instance
+
+    - label: fascicle cross section diameter um
+      domain: fascicle-cross-section
+      aspect: diameter
+      unit: micrometer
+      aggregation_type: instance
+
+    - label: fascicle cross section diameter um min
+      domain: fascicle-cross-section
+      aspect: diameter
+      unit: micrometer
+      aggregation_type: min
+
+    - label: fascicle cross section diameter um max
+      domain: fascicle-cross-section
+      aspect: diameter
+      unit: micrometer
+      aggregation_type: max
+
+    # Fiber counts in fascicle
+    - label: fiber count in fascicle cross section
+      domain: fascicle-cross-section
+      aspect: count-fiber
+      unit: count
+      aggregation_type: summary
+
+    - label: nav fiber count in fascicle cross section estimated
+      domain: fascicle-cross-section
+      aspect: count-fiber-nav
+      unit: count
+      aggregation_type: summary
+
+    - label: fiber count in fascicle cross section estimated
+      domain: fascicle-cross-section
+      aspect: count-estimated-fiber
+      unit: count
+      aggregation_type: summary
+
+    # Fiber type counts
+    - label: alpha a fiber count in fascicle cross section
+      domain: fascicle-cross-section
+      aspect: count-fiber-a-alpha
+      unit: count
+      aggregation_type: summary
+
+    - label: beta a fiber count in fascicle cross section
+      domain: fascicle-cross-section
+      aspect: count-fiber-a-beta
+      unit: count
+      aggregation_type: summary
+
+    - label: gamma a fiber count in fascicle cross section
+      domain: fascicle-cross-section
+      aspect: count-fiber-a-gamma
+      unit: count
+      aggregation_type: summary
+
+    - label: delta a fiber count in fascicle cross section
+      domain: fascicle-cross-section
+      aspect: count-fiber-a-delta
+      unit: count
+      aggregation_type: summary
+
+    - label: b fiber count in fascicle cross section
+      domain: fascicle-cross-section
+      aspect: count-fiber-b
+      unit: count
+      aggregation_type: summary
+
+    - label: unmyelinated fiber count in fascicle cross section
+      domain: fascicle-cross-section
+      aspect: count-fiber-unmyelinated
+      unit: count
+      aggregation_type: summary
+
+    - label: nav fiber count in fascicle cross section
+      domain: fascicle-cross-section
+      aspect: count-fiber-nav
+      unit: count
+      aggregation_type: summary
+
+    - label: chat fiber count in fascicle cross section
+      domain: fascicle-cross-section
+      aspect: count-fiber-chat
+      unit: count
+      aggregation_type: summary
+
+    - label: myelinated fiber count in fascicle cross section
+      domain: fascicle-cross-section
+      aspect: count-fiber-myelinated
+      unit: count
+      aggregation_type: summary
+
+    # Fiber type areas
+    - label: alpha a fiber area in fascicle cross section um2
+      domain: fascicle-cross-section
+      aspect: area-fiber-a-alpha
+      unit: um2
+      aggregation_type: summary
+
+    - label: beta a fiber area in fascicle cross section um2
+      domain: fascicle-cross-section
+      aspect: area-fiber-a-beta
+      unit: um2
+      aggregation_type: summary
+
+    - label: gamma a fiber area in fascicle cross section um2
+      domain: fascicle-cross-section
+      aspect: area-fiber-a-gamma
+      unit: um2
+      aggregation_type: summary
+
+    - label: delta a fiber area in fascicle cross section um2
+      domain: fascicle-cross-section
+      aspect: area-fiber-a-delta
+      unit: um2
+      aggregation_type: summary
+
+    - label: b fiber area in fascicle cross section um2
+      domain: fascicle-cross-section
+      aspect: area-fiber-b
+      unit: um2
+      aggregation_type: summary
+
+    - label: unmyelinated fiber area in fascicle cross section um2
+      domain: fascicle-cross-section
+      aspect: area-fiber-unmyelinated
+      unit: um2
+      aggregation_type: summary
+
+    - label: nav fiber area in fascicle cross section um2
+      domain: fascicle-cross-section
+      aspect: area-fiber-nav
+      unit: um2
+      aggregation_type: summary
+
+    - label: chat fiber area in fascicle cross section um2
+      domain: fascicle-cross-section
+      aspect: area-fiber-chat
+      unit: um2
+      aggregation_type: summary
+
+    - label: myelinated fiber area in fascicle cross section um2
+      domain: fascicle-cross-section
+      aspect: area-fiber-myelinated
+      unit: um2
+      aggregation_type: summary
+
+    # Position measurements
+    - label: fiber centroid x position um
+      domain: fiber-cross-section
+      aspect: centroid-x
+      unit: micrometer
+      aggregation_type: instance
+
+    - label: fiber centroid y position um
+      domain: fiber-cross-section
+      aspect: centroid-y
+      unit: micrometer
+      aggregation_type: instance
+
+    - label: fascicle centroid x position um
+      domain: fascicle-cross-section
+      aspect: centroid-x
+      unit: micrometer
+      aggregation_type: instance
+
+    - label: fascicle centroid y position um
+      domain: fascicle-cross-section
+      aspect: centroid-y
+      unit: micrometer
+      aggregation_type: instance
+
+    - label: fiber radius from fascicle centroid um
+      domain: fiber-cross-section
+      aspect: radius-from-parent-centroid
+      unit: micrometer
+      aggregation_type: instance
+
+    - label: fiber angle from fascicle centroid radians
+      domain: fiber-cross-section
+      aspect: angle-from-parent-centroid
+      unit: dimensionless
+      aggregation_type: instance
+
+  categorical:
+    # Fiber classification descriptors
+    - label: fiber type classification
+      domain: nerve-fiber
+      range: controlled
+
+    - label: myelin status
+      domain: nerve-fiber
+      range: controlled
+
+    - label: marker expression
+      domain: nerve-fiber
+      range: controlled
+
+# F006 specific addresses for CSV columns
+addresses:
+  # Fascicle CSV columns
+  fascicle_id:
+    addr_type: tabular-header
+    addr_field: fascicle
+    value_type: single
+
+  fascicle_area:
+    addr_type: tabular-header
+    addr_field: area
+    value_type: single
+
+  fascicle_longest_diameter:
+    addr_type: tabular-header
+    addr_field: longest_diameter
+    value_type: single
+
+  fascicle_shortest_diameter:
+    addr_type: tabular-header
+    addr_field: shortest_diameter
+    value_type: single
+
+  fascicle_eff_diam:
+    addr_type: tabular-header
+    addr_field: eff_diam
+    value_type: single
+
+  fascicle_x_cent:
+    addr_type: tabular-header
+    addr_field: x_cent
+    value_type: single
+
+  fascicle_y_cent:
+    addr_type: tabular-header
+    addr_field: y_cent
+    value_type: single
+
+  # Fiber CSV columns
+  fiber_area:
+    addr_type: tabular-header
+    addr_field: fiber_area
+    value_type: single
+
+  fiber_eff_diam:
+    addr_type: tabular-header
+    addr_field: eff_fib_diam
+    value_type: single
+
+  fiber_longest_diameter:
+    addr_type: tabular-header
+    addr_field: longest_diameter
+    value_type: single
+
+  fiber_shortest_diameter:
+    addr_type: tabular-header
+    addr_field: shortest_diameter
+    value_type: single
+
+  fiber_x:
+    addr_type: tabular-header
+    addr_field: x
+    value_type: single
+
+  fiber_y:
+    addr_type: tabular-header
+    addr_field: y
+    value_type: single
+
+  fiber_rho:
+    addr_type: tabular-header
+    addr_field: rho
+    value_type: single
+
+  fiber_phi:
+    addr_type: tabular-header
+    addr_field: phi
+    value_type: single
+
+  # Fiber type counts
+  n_a_alpha:
+    addr_type: tabular-header
+    addr_field: n_a_alpha
+    value_type: single
+
+  n_a_beta:
+    addr_type: tabular-header
+    addr_field: n_a_beta
+    value_type: single
+
+  n_a_gamma:
+    addr_type: tabular-header
+    addr_field: n_a_gamma
+    value_type: single
+
+  n_a_delta:
+    addr_type: tabular-header
+    addr_field: n_a_delta
+    value_type: single
+
+  n_b:
+    addr_type: tabular-header
+    addr_field: n_b
+    value_type: single
+
+  n_unmyel_nf:
+    addr_type: tabular-header
+    addr_field: n_unmyel_nf
+    value_type: single
+
+  n_nav:
+    addr_type: tabular-header
+    addr_field: n_nav
+    value_type: single
+
+  n_chat:
+    addr_type: tabular-header
+    addr_field: n_chat
+    value_type: single
+
+  n_myelinated:
+    addr_type: tabular-header
+    addr_field: n_myelinated
+    value_type: single
+
+  # Fiber type areas
+  area_a_alpha:
+    addr_type: tabular-header
+    addr_field: area_a_alpha
+    value_type: single
+
+  area_a_beta:
+    addr_type: tabular-header
+    addr_field: area_a_beta
+    value_type: single
+
+  area_a_gamma:
+    addr_type: tabular-header
+    addr_field: area_a_gamma
+    value_type: single
+
+  area_a_delta:
+    addr_type: tabular-header
+    addr_field: area_a_delta
+    value_type: single
+
+  area_b:
+    addr_type: tabular-header
+    addr_field: area_b
+    value_type: single
+
+  area_unmyel_nf:
+    addr_type: tabular-header
+    addr_field: area_unmyel_nf
+    value_type: single
+
+  area_nav:
+    addr_type: tabular-header
+    addr_field: area_nav
+    value_type: single
+
+  area_chat:
+    addr_type: tabular-header
+    addr_field: area_chat
+    value_type: single
+
+  area_myelinated:
+    addr_type: tabular-header
+    addr_field: area_myelinated
+    value_type: single
+
+# F006 file type to processing mappings
+file_types:
+  "text/csv": "measurement_data"
+
+# Object descriptor mappings for F006 CSV files
+object_mappings:
+  measurement_data:
+    instance_mappings:
+      - descriptor: nerve-cross-section
+        address: constant
+      - descriptor: fascicle-cross-section
+        address: constant
+      - descriptor: fiber-cross-section
+        address: constant
+
+    quantitative_mappings:
+      # Fascicle measurements
+      - descriptor: fascicle cross section area um2
+        address: fascicle_area
+      - descriptor: fascicle cross section diameter um
+        address: fascicle_eff_diam
+      - descriptor: fascicle cross section diameter um min
+        address: fascicle_shortest_diameter
+      - descriptor: fascicle cross section diameter um max
+        address: fascicle_longest_diameter
+      - descriptor: fascicle centroid x position um
+        address: fascicle_x_cent
+      - descriptor: fascicle centroid y position um
+        address: fascicle_y_cent
+
+      # Fiber counts
+      - descriptor: alpha a fiber count in fascicle cross section
+        address: n_a_alpha
+      - descriptor: beta a fiber count in fascicle cross section
+        address: n_a_beta
+      - descriptor: gamma a fiber count in fascicle cross section
+        address: n_a_gamma
+      - descriptor: delta a fiber count in fascicle cross section
+        address: n_a_delta
+      - descriptor: b fiber count in fascicle cross section
+        address: n_b
+      - descriptor: unmyelinated fiber count in fascicle cross section
+        address: n_unmyel_nf
+      - descriptor: nav fiber count in fascicle cross section
+        address: n_nav
+      - descriptor: chat fiber count in fascicle cross section
+        address: n_chat
+      - descriptor: myelinated fiber count in fascicle cross section
+        address: n_myelinated
+
+      # Fiber areas
+      - descriptor: alpha a fiber area in fascicle cross section um2
+        address: area_a_alpha
+      - descriptor: beta a fiber area in fascicle cross section um2
+        address: area_a_beta
+      - descriptor: gamma a fiber area in fascicle cross section um2
+        address: area_a_gamma
+      - descriptor: delta a fiber area in fascicle cross section um2
+        address: area_a_delta
+      - descriptor: b fiber area in fascicle cross section um2
+        address: area_b
+      - descriptor: unmyelinated fiber area in fascicle cross section um2
+        address: area_unmyel_nf
+      - descriptor: nav fiber area in fascicle cross section um2
+        address: area_nav
+      - descriptor: chat fiber area in fascicle cross section um2
+        address: area_chat
+      - descriptor: myelinated fiber area in fascicle cross section um2
+        address: area_myelinated
+
+      # Individual fiber measurements (if processing fiber CSV)
+      - descriptor: fiber cross section area um2
+        address: fiber_area
+      - descriptor: fiber cross section diameter um
+        address: fiber_eff_diam
+      - descriptor: fiber cross section diameter um min
+        address: fiber_shortest_diameter
+      - descriptor: fiber cross section diameter um max
+        address: fiber_longest_diameter
+      - descriptor: fiber centroid x position um
+        address: fiber_x
+      - descriptor: fiber centroid y position um
+        address: fiber_y
+      - descriptor: fiber radius from fascicle centroid um
+        address: fiber_rho
+      - descriptor: fiber angle from fascicle centroid radians
+        address: fiber_phi
+
+# Controlled terms for F006
+controlled_terms:
+  # Fiber types
+  - iri: http://uri.interlex.org/ilx_0739400
+    label: a-alpha-fiber
+  - iri: http://uri.interlex.org/ilx_0739401
+    label: a-beta-fiber
+  - iri: http://uri.interlex.org/ilx_0739402
+    label: a-gamma-fiber
+  - iri: http://uri.interlex.org/ilx_0739403
+    label: a-delta-fiber
+  - iri: http://uri.interlex.org/ilx_0739404
+    label: b-fiber
+  - iri: http://uri.interlex.org/ilx_0739405
+    label: c-fiber
+
+  # Myelin status
+  - iri: http://uri.interlex.org/ilx_0739410
+    label: myelinated
+  - iri: http://uri.interlex.org/ilx_0739411
+    label: unmyelinated
+
+  # Marker expression
+  - iri: http://uri.interlex.org/ilx_0739420
+    label: nav-positive
+  - iri: http://uri.interlex.org/ilx_0739421
+    label: chat-positive
+  - iri: http://uri.interlex.org/ilx_0739422
+    label: th-positive
+
+# Default values for F006
+instance_defaults:
+  subject_type: pig
+  sample_type: nerve-volume
+  site_type: nerve-cross-section

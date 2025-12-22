@@ -173,4 +173,17 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
+
+csv_cache/
+ingest_2025*
+f006_csv_debug*
+f006_*/
+production_*/
+*.md
+!README.md
 README.pdf
+.DS_STORE
+.vscode/
+export*/
+ingestion/data
+my_export/

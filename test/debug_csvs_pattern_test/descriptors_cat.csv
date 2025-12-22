@@ -1,0 +1,10 @@
+id,domain,range,label,description,curator_note
+1,28.0,controlled,fasciclePositiveStainType,,
+2,25.0,controlled,fasciclePositiveStainType,,
+3,28.0,controlled,fascicleNegativeStainType,,
+4,25.0,controlled,fascicleNegativeStainType,,
+5,,controlled,positiveStainType,,
+6,,controlled,hasDataAboutItModality,,
+7,,controlled,hasAnatomicalTag,,
+8,,controlled,hasAssociatedObject,,
+9,,controlled,bottom,,

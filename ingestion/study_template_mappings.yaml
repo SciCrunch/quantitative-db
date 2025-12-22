@@ -1,0 +1,385 @@
+# Common mappings for study ingestion templates
+# This file contains standard definitions that can be included in dataset-specific mappings
+
+# Standard aspects used across studies
+aspects:
+  - iri: http://purl.obolibrary.org/obo/PATO_0001595
+    label: depth
+  - iri: http://purl.obolibrary.org/obo/PATO_0000122
+    label: length
+  - iri: http://purl.obolibrary.org/obo/PATO_0000921
+    label: mass
+  - iri: http://purl.obolibrary.org/obo/PATO_0000918
+    label: volume
+  - iri: http://purl.obolibrary.org/obo/PATO_0001352
+    label: diameter
+  - iri: http://purl.obolibrary.org/obo/PATO_0000146
+    label: temperature
+  - iri: http://purl.obolibrary.org/obo/PATO_0000125
+    label: mass-per-unit-volume
+  - iri: http://purl.obolibrary.org/obo/PATO_0000033
+    label: concentration
+  - iri: http://purl.obolibrary.org/obo/PATO_0001291
+    label: electromagnetic-radiation-wavelength
+  - iri: http://purl.obolibrary.org/obo/PATO_0002138
+    label: size
+  - iri: http://purl.obolibrary.org/obo/PATO_0000040
+    label: width
+  - iri: http://purl.obolibrary.org/obo/PATO_0001708
+    label: 1-D-extent
+  - iri: http://purl.obolibrary.org/obo/PATO_0001709
+    label: 2-D-extent
+  - iri: http://purl.obolibrary.org/obo/PATO_0001710
+    label: 3-D-extent
+  - iri: http://purl.obolibrary.org/obo/PATO_0002182
+    label: molecular-mass
+  - iri: http://purl.obolibrary.org/obo/PATO_0000008
+    label: speed
+  - iri: http://purl.obolibrary.org/obo/PATO_0002242
+    label: resolution
+  - iri: http://purl.obolibrary.org/obo/PATO_0015013
+    label: contractility
+  - iri: http://purl.obolibrary.org/obo/PATO_0000161
+    label: rate
+  - iri: http://purl.obolibrary.org/obo/PATO_0000911
+    label: charge
+  - iri: http://uri.interlex.org/ilx_0739307
+    label: intensity
+
+# Standard units used across studies
+units:
+  - iri: http://purl.obolibrary.org/obo/UO_0000187
+    label: percent
+  - iri: http://purl.obolibrary.org/obo/UO_0000016
+    label: millimeter
+  - iri: http://purl.obolibrary.org/obo/UO_0000017
+    label: micrometer
+  - iri: http://purl.obolibrary.org/obo/UO_0000018
+    label: nanometer
+  - iri: http://purl.obolibrary.org/obo/UO_0000098
+    label: milliliter
+  - iri: http://purl.obolibrary.org/obo/UO_0000099
+    label: microliter
+  - iri: http://purl.obolibrary.org/obo/UO_0000101
+    label: nanoliter
+  - iri: http://purl.obolibrary.org/obo/UO_0000221
+    label: dalton
+  - iri: http://purl.obolibrary.org/obo/UO_0000222
+    label: kilodalton
+  - iri: http://purl.obolibrary.org/obo/UO_0010012
+    label: nanometer-per-second
+  - iri: http://purl.obolibrary.org/obo/UO_0000022
+    label: milligram
+  - iri: http://purl.obolibrary.org/obo/UO_0000023
+    label: microgram
+  - iri: http://purl.obolibrary.org/obo/UO_0000024
+    label: nanogram
+  - iri: http://purl.obolibrary.org/obo/UO_0000175
+    label: gram-per-liter
+  - iri: http://purl.obolibrary.org/obo/UO_0000274
+    label: milligram-per-milliliter
+  - iri: http://purl.obolibrary.org/obo/UO_0000273
+    label: milligram-per-deciliter
+  - iri: http://purl.obolibrary.org/obo/UO_0000301
+    label: microgram-per-milliliter
+  - iri: http://purl.obolibrary.org/obo/UO_0000027
+    label: degree-celsius
+  - iri: http://purl.obolibrary.org/obo/UO_0000015
+    label: centimeter
+  - iri: http://purl.obolibrary.org/obo/UO_0000095
+    label: cubic-millimeter
+  - iri: http://purl.obolibrary.org/obo/UO_0000096
+    label: cubic-centimeter
+  - iri: http://purl.obolibrary.org/obo/UO_0000097
+    label: cubic-micrometer
+  - iri: http://purl.obolibrary.org/obo/UO_0000104
+    label: microliter
+  - iri: http://purl.obolibrary.org/obo/UO_0000082
+    label: square-millimeter
+  - iri: http://purl.obolibrary.org/obo/UO_0000083
+    label: square-centimeter
+  - iri: http://purl.obolibrary.org/obo/UO_0000084
+    label: square-micrometer
+  - iri: http://purl.obolibrary.org/obo/UO_0000002
+    label: millisecond
+  - iri: http://purl.obolibrary.org/obo/UO_0000003
+    label: microsecond
+  - iri: http://purl.obolibrary.org/obo/UO_0000186
+    label: dimensionless
+  - iri: http://purl.obolibrary.org/obo/UO_0000189
+    label: count
+  - iri: http://purl.obolibrary.org/obo/UO_0000169
+    label: parts-per-million
+  - iri: http://purl.obolibrary.org/obo/UO_0000062
+    label: molar
+  - iri: http://purl.obolibrary.org/obo/UO_0000063
+    label: millimolar
+  - iri: http://purl.obolibrary.org/obo/UO_0000064
+    label: micromolar
+  - iri: http://purl.obolibrary.org/obo/UO_0000065
+    label: nanomolar
+  - iri: http://purl.obolibrary.org/obo/UO_0000066
+    label: picomolar
+  - iri: http://purl.obolibrary.org/obo/UO_0000268
+    label: volt
+  - iri: http://purl.obolibrary.org/obo/UO_0000247
+    label: millivolt
+  - iri: http://purl.obolibrary.org/obo/UO_0000246
+    label: microvolt
+  - iri: http://purl.obolibrary.org/obo/UO_0000228
+    label: picoampere
+  - iri: http://purl.obolibrary.org/obo/UO_0000038
+    label: picosiemens
+  - iri: http://purl.obolibrary.org/obo/UO_0000031
+    label: minute
+  - iri: http://purl.obolibrary.org/obo/UO_0000032
+    label: hour
+  - iri: http://purl.obolibrary.org/obo/UO_0000033
+    label: day
+  - iri: http://purl.obolibrary.org/obo/UO_0000035
+    label: month
+  - iri: http://purl.obolibrary.org/obo/UO_0000036
+    label: year
+  - iri: http://purl.obolibrary.org/obo/UO_0000010
+    label: second
+  - iri: http://purl.obolibrary.org/obo/UO_0000008
+    label: meter
+  - iri: http://purl.obolibrary.org/obo/TEMP_0000002
+    label: arbitrary-unit
+
+# Common controlled terms
+controlled_terms:
+  - iri: http://purl.obolibrary.org/obo/NCBITaxon_9606
+    label: human
+  - iri: http://purl.obolibrary.org/obo/NCBITaxon_10090
+    label: mouse
+  - iri: http://purl.obolibrary.org/obo/NCBITaxon_10116
+    label: rat
+  - iri: http://purl.obolibrary.org/obo/NCBITaxon_9986
+    label: rabbit
+  - iri: http://purl.obolibrary.org/obo/NCBITaxon_9544
+    label: macaque
+  - iri: http://purl.obolibrary.org/obo/NCBITaxon_9823
+    label: pig
+  - iri: http://purl.obolibrary.org/obo/NCBITaxon_9615
+    label: dog
+  - iri: http://purl.obolibrary.org/obo/NCBITaxon_9685
+    label: cat
+  - iri: http://purl.obolibrary.org/obo/PATO_0000383
+    label: female
+  - iri: http://purl.obolibrary.org/obo/PATO_0000384
+    label: male
+  - iri: http://purl.obolibrary.org/obo/PATO_0002354
+    label: unknown-sex
+  - iri: http://purl.obolibrary.org/obo/PATO_0001421
+    label: alive
+  - iri: http://purl.obolibrary.org/obo/PATO_0001422
+    label: dead
+  - iri: http://purl.obolibrary.org/obo/UBERON_0000468
+    label: multicellular-organism
+  - iri: http://purl.obolibrary.org/obo/UBERON_0001062
+    label: anatomical-entity
+  - iri: http://purl.obolibrary.org/obo/CL_0000000
+    label: cell
+  - iri: http://purl.obolibrary.org/obo/GO_0005575
+    label: cellular-component
+  - iri: http://purl.obolibrary.org/obo/CHEBI_23367
+    label: molecular-entity
+  - iri: http://purl.obolibrary.org/obo/UBERON_0000479
+    label: tissue
+  - iri: http://purl.obolibrary.org/obo/UBERON_0000062
+    label: organ
+  - iri: http://purl.obolibrary.org/obo/UBERON_0000467
+    label: anatomical-system
+  - iri: http://purl.obolibrary.org/obo/UBERON_0001016
+    label: nervous-system
+  - iri: http://purl.obolibrary.org/obo/UBERON_0001017
+    label: central-nervous-system
+  - iri: http://purl.obolibrary.org/obo/UBERON_0001021
+    label: nerve
+  - iri: http://purl.obolibrary.org/obo/UBERON_0002240
+    label: spinal-cord
+  - iri: http://purl.obolibrary.org/obo/UBERON_0000955
+    label: brain
+  - iri: http://purl.obolibrary.org/obo/UBERON_0002298
+    label: brainstem
+  - iri: http://purl.obolibrary.org/obo/UBERON_0002037
+    label: cerebellum
+  - iri: http://purl.obolibrary.org/obo/UBERON_0001893
+    label: telencephalon
+  - iri: http://purl.obolibrary.org/obo/UBERON_0002021
+    label: occipital-lobe
+  - iri: http://purl.obolibrary.org/obo/UBERON_0002114
+    label: duodenum
+  - iri: http://purl.obolibrary.org/obo/UBERON_0002115
+    label: jejunum
+  - iri: http://purl.obolibrary.org/obo/UBERON_0002116
+    label: ileum
+  - iri: http://purl.obolibrary.org/obo/UBERON_0001052
+    label: rectum
+  - iri: http://purl.obolibrary.org/obo/UBERON_0000059
+    label: large-intestine
+  - iri: http://purl.obolibrary.org/obo/UBERON_0002108
+    label: small-intestine
+  - iri: http://purl.obolibrary.org/obo/UBERON_0000945
+    label: stomach
+  - iri: http://purl.obolibrary.org/obo/UBERON_0001043
+    label: esophagus
+  - iri: http://purl.obolibrary.org/obo/UBERON_0002107
+    label: liver
+  - iri: http://purl.obolibrary.org/obo/UBERON_0001264
+    label: pancreas
+  - iri: http://purl.obolibrary.org/obo/UBERON_0002113
+    label: kidney
+  - iri: http://purl.obolibrary.org/obo/UBERON_0002370
+    label: thymus
+  - iri: http://purl.obolibrary.org/obo/UBERON_0002106
+    label: spleen
+  - iri: http://purl.obolibrary.org/obo/UBERON_0000948
+    label: heart
+  - iri: http://purl.obolibrary.org/obo/UBERON_0002048
+    label: lung
+  - iri: http://purl.obolibrary.org/obo/UBERON_0001913
+    label: milk
+  - iri: http://purl.obolibrary.org/obo/UBERON_0001977
+    label: serum
+  - iri: http://purl.obolibrary.org/obo/UBERON_0001969
+    label: blood-plasma
+  - iri: http://purl.obolibrary.org/obo/UBERON_0001836
+    label: saliva
+  - iri: http://purl.obolibrary.org/obo/UBERON_0001088
+    label: urine
+  - iri: http://purl.obolibrary.org/obo/UBERON_0001988
+    label: feces
+  - iri: http://purl.obolibrary.org/obo/UBERON_0007795
+    label: ascites-fluid
+  - iri: http://purl.obolibrary.org/obo/UBERON_0000922
+    label: embryo
+  - iri: http://purl.obolibrary.org/obo/UBERON_0000323
+    label: late-embryo
+  - iri: http://purl.obolibrary.org/obo/UBERON_0007220
+    label: fetus
+  - iri: http://purl.obolibrary.org/obo/UBERON_0034923
+    label: neonate
+  - iri: http://purl.obolibrary.org/obo/UBERON_0034919
+    label: juvenile
+  - iri: http://purl.obolibrary.org/obo/UBERON_0007023
+    label: adult
+  - iri: http://purl.obolibrary.org/obo/UBERON_0007222
+    label: late-adult
+
+# Common instance type descriptors
+descriptors:
+  instance_types:
+    # Species descriptors
+    - iri: http://purl.obolibrary.org/obo/NCBITaxon_9606
+      label: human
+    - iri: http://purl.obolibrary.org/obo/NCBITaxon_10090
+      label: mouse
+    - iri: http://purl.obolibrary.org/obo/NCBITaxon_10116
+      label: rat
+    - iri: http://purl.obolibrary.org/obo/NCBITaxon_9544
+      label: macaque
+    - iri: http://purl.obolibrary.org/obo/NCBITaxon_9823
+      label: pig
+
+    # Anatomical structure descriptors
+    - iri: http://uri.interlex.org/ilx_0738307
+      label: nerve-volume
+    - iri: http://uri.interlex.org/ilx_0739308
+      label: extruded-plane
+    - iri: http://uri.interlex.org/ilx_0745611
+      label: site
+    - iri: http://uri.interlex.org/ilx_0745612
+      label: sample
+    - iri: http://uri.interlex.org/ilx_0745613
+      label: subject
+    - iri: http://purl.obolibrary.org/obo/UBERON_0001021
+      label: nerve
+    - iri: http://purl.obolibrary.org/obo/UBERON_0001062
+      label: anatomical-entity
+    - iri: http://purl.obolibrary.org/obo/UBERON_0000479
+      label: tissue
+    - iri: http://purl.obolibrary.org/obo/UBERON_0000062
+      label: organ
+    - iri: http://purl.obolibrary.org/obo/CL_0000000
+      label: cell
+    - iri: http://purl.obolibrary.org/obo/GO_0043226
+      label: organelle
+    - iri: http://purl.obolibrary.org/obo/UBERON_0002050
+      label: embryonic-structure
+    - iri: http://purl.obolibrary.org/obo/UBERON_0000323
+      label: late-embryonic-structure
+    - iri: http://purl.obolibrary.org/obo/UBERON_0000922
+      label: embryo-stage
+    - iri: http://uri.interlex.org/ilx_0780152
+      label: scaffold
+    - iri: http://uri.interlex.org/ilx_0780153
+      label: scaffold-segment
+    - iri: http://uri.interlex.org/ilx_0780154
+      label: scaffold-region
+
+    # Fiber/fascicle descriptors
+    - iri: http://uri.interlex.org/ilx_0739302
+      label: nerve-fiber
+    - iri: http://uri.interlex.org/ilx_0739301
+      label: nerve-fascicle
+    - iri: http://uri.interlex.org/ilx_0739303
+      label: myelinated-fiber
+    - iri: http://uri.interlex.org/ilx_0739304
+      label: unmyelinated-fiber
+    - iri: http://uri.interlex.org/ilx_0739305
+      label: axon
+    - iri: http://uri.interlex.org/ilx_0739306
+      label: myelin-sheath
+
+# Default instance types for common entity types
+instance_defaults:
+  subject_type: human
+  sample_type: nerve-volume
+  site_type: extruded-plane
+  scaffold_type: scaffold
+  fiber_type: nerve-fiber
+  fascicle_type: nerve-fascicle
+
+# Common file type mappings
+file_types:
+  "image/tiff": "microscopy_image"
+  "image/png": "microscopy_image"
+  "image/jpeg": "microscopy_image"
+  "text/csv": "tabular_data"
+  "application/vnd.ms-excel": "tabular_data"
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "tabular_data"
+  "application/x-matlab-data": "matlab_data"
+  "application/json": "metadata"
+  "text/plain": "text_data"
+  "application/pdf": "document"
+  "application/x-hdf": "binary_data"
+  "application/octet-stream": "binary_data"
+
+# Common address types
+address_types:
+  constant:
+    addr_type: constant
+    addr_field: null
+    value_type: single
+
+  tabular_header:
+    addr_type: tabular-header
+    value_type: single
+
+  tabular_row_column:
+    addr_type: tabular-row-column
+    value_type: single
+
+  json_path:
+    addr_type: json-path
+    value_type: single
+
+  xpath:
+    addr_type: xpath
+    value_type: single
+
+  hdf5_dataset:
+    addr_type: hdf5-dataset
+    value_type: array
