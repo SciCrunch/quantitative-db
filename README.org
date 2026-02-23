@@ -3,3 +3,15 @@ A database schema for storing arbitrary quantitative measurements.
 
 See the [[file:./docs/api.org][REST API documentation]] for details on
 the external query interface.
+
+* Installation
+add the passwords to ~/.pgpass as
+```
+host:port:*:quantdb-admin:password
+host:port:*:quantdb-user:password
+host:port:*:quantdb-test-admin:password
+host:port:*:quantdb-test-user:password
+```
+
+* Notes
+macOS will need the config.yaml in `Library/Application Support/quantdb/config.yaml`

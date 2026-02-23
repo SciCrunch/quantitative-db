@@ -956,7 +956,7 @@ BEGIN
 RETURN QUERY
 WITH RECURSIVE tree(child, parents) AS (
 SELECT parent, ARRAY[]::integer[] FROM -- start from nodes with no parents
-(SELECT ap0.parent FROM aspect_parent AS ap0 EXCEPT SELECT ap1.id FROM aspect_parent AS ap1)
+(SELECT ap0.parent FROM aspect_parent AS ap0 EXCEPT SELECT ap1.id FROM aspect_parent AS ap1) AS root_nodes
 UNION ALL
 SELECT ap.id, ap.parent || t.parents
 FROM aspect_parent AS ap
@@ -1075,7 +1075,7 @@ BEGIN
 RETURN QUERY
 WITH RECURSIVE tree(child, parents) AS (
 SELECT parent, ARRAY[]::integer[] FROM -- start from nodes with no parents
-(SELECT cp0.parent FROM class_parent AS cp0 EXCEPT SELECT cp1.id FROM class_parent AS cp1)
+(SELECT cp0.parent FROM class_parent AS cp0 EXCEPT SELECT cp1.id FROM class_parent AS cp1) AS root_nodes
 UNION ALL
 SELECT cp.id, cp.parent || t.parents
 FROM class_parent AS cp
@@ -1170,7 +1170,7 @@ BEGIN
 RETURN QUERY
 WITH RECURSIVE tree(child, parents) AS (
 SELECT parent, ARRAY[]::integer[] FROM -- start from nodes with no parents
-(SELECT ip0.parent FROM instance_parent AS ip0 EXCEPT SELECT ip1.id FROM instance_parent AS ip1)
+(SELECT ip0.parent FROM instance_parent AS ip0 EXCEPT SELECT ip1.id FROM instance_parent AS ip1) AS root_nodes
 UNION ALL
 SELECT ip.id, ip.parent || t.parents
 FROM instance_parent AS ip
@@ -1205,8 +1205,8 @@ WHERE im.id = NEW.id)
 SELECT -- FIXME surely there is a more efficient way to do this
 (((SELECT count(*) FROM samples) > 0 OR  (SELECT count(*) from subjects) > 0) AND (SELECT count(*) FROM parents) = 0) AS one,
 ( (SELECT count(*) FROM samples) = 0 AND (SELECT count(*) from subjects) = 0  AND (SELECT count(*) FROM parents) > 0) AS two,
-(    (SELECT count(*) FROM (SELECT * FROM parents INTERSECT SELECT * FROM subjects)) = (SELECT count(*) FROM subjects)
-AND  (SELECT count(*) FROM (SELECT * FROM parents INTERSECT SELECT * FROM samples))  = (SELECT count(*) FROM samples)) AS three
+(    (SELECT count(*) FROM (SELECT * FROM parents INTERSECT SELECT * FROM subjects) AS parent_subject_intersect) = (SELECT count(*) FROM subjects)
+AND  (SELECT count(*) FROM (SELECT * FROM parents INTERSECT SELECT * FROM samples) AS parent_sample_intersect)  = (SELECT count(*) FROM samples)) AS three
 /*
 -- we cannot check against parents in this last case because it can contain intermediates therefore we can only check parents contain all referenced subjects and samples, going the other way around we know we will be missing any intervening samples, but those will have been checked when they were inserted
 AND  (SELECT count(*) FROM (SELECT * FROM parents INTERSECT SELECT * FROM (SELECT * FROM subjects UNION SELECT * FROM samples))) = (SELECT count(*) FROM parents))
