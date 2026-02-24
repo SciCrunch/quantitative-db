@@ -12,6 +12,8 @@ DROP DATABASE IF EXISTS :test_database;
 CREATE DATABASE :test_database -- quantdb
     WITH OWNER = 'quantdb-test-admin'
     ENCODING = 'UTF8'
+    LC_COLLATE = 'C'
+    LC_CTYPE = 'C'
     CONNECTION LIMIT = -1;
 
 REVOKE "quantdb-test-admin" FROM CURRENT_USER;

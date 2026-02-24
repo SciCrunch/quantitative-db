@@ -163,8 +163,8 @@ psql -U postgres -h "${HOST}" -p "${PORT}" -d "${TEST_DATABASE}" -c "
 "
 
 echo ""
-echo "==> Verifying local quantdb_test"
-psql -U postgres -h "${HOST}" -p "${PORT}" -d quantdb_test -c "
+echo "==> Verifying local ${TEST_DATABASE}"
+psql -U postgres -h "${HOST}" -p "${PORT}" -d "${TEST_DATABASE}" -c "
   SELECT
     (SELECT count(*) FROM quantdb.values_quant) AS values_quant,
     (SELECT count(*) FROM quantdb.values_cat) AS values_cat,
