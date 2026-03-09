@@ -33,4 +33,4 @@ repos = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest ~= 8.1.1"]
+dev = ["pytest ~= 8.1.1", "pre-commit ~= 3.7.0"]
