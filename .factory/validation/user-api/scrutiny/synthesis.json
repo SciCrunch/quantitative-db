@@ -1,7 +1,7 @@
 {
   "milestone": "user-api",
-  "round": 2,
-  "status": "fail",
+  "round": 3,
+  "status": "pass",
   "validatorsRun": {
     "test": {
       "passed": true,
@@ -21,27 +21,25 @@
   },
   "reviewsSummary": {
     "total": 1,
-    "passed": 0,
-    "failed": 1,
-    "failedFeatures": [
-      "fix-ingest-class-scrutiny"
-    ]
+    "passed": 1,
+    "failed": 0,
+    "failedFeatures": []
   },
-  "blockingIssues": [
+  "blockingIssues": [],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
     {
-      "featureId": "fix-ingest-class-scrutiny",
-      "severity": "blocking",
-      "description": "`Ingest.batch()` still allows direct inserts into lookup tables because it lacks the same `table_info.is_lookup` guard added to `Ingest.row()`, so batch calls can still auto-create protected lookup rows through `deep_upsert()`."
+      "target": "skills",
+      "suggestion": "Update the `python-library-worker` procedure or its transcript-audit expectations so required `.factory/library/architecture.md` and `.factory/library/environment.md` reads are explicitly visible before a worker reports `followedProcedure: true`.",
+      "evidence": "The pass review for `fix-batch-lookup-guard` found that `.factory/skills/python-library-worker/SKILL.md` requires reading those library files, but the recorded transcript skeleton for worker session `8e0297c3-c88a-4450-920b-d7248eef9c3d` only showed an `LS` of `.factory/library` before implementation while the handoff still reported `skillFeedback.followedProcedure: true`.",
+      "isSystemic": true
     }
   ],
-  "appliedUpdates": [
+  "rejectedObservations": [
     {
-      "target": "library",
-      "description": "Documented in `.factory/library/environment.md` that committed write-based cleanup may require a higher-privilege localhost connection because `quantdb-test-user` cannot delete committed rows from tables like `objects`.",
-      "sourceFeature": "fix-ingest-class-scrutiny"
+      "observation": "Pre-commit formatting is required by `AGENTS.md` and `python-library-worker`, but `.factory/services.yaml` does not expose a formatter/pre-commit command.",
+      "reason": "ambiguous: services.yaml commands are static strings, so adding a fixed formatter entry would not faithfully capture the required per-change `pre-commit run --files <changed-files>` workflow without choosing an overly broad default."
     }
   ],
-  "suggestedGuidanceUpdates": [],
-  "rejectedObservations": [],
-  "previousRound": ".factory/validation/user-api/scrutiny/synthesis.round-1.json"
+  "previousRound": ".factory/validation/user-api/scrutiny/synthesis.round-2.json"
 }
