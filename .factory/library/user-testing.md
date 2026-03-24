@@ -35,3 +35,14 @@
 ## CRITICAL CONSTRAINT
 
 All validation must use **localhost:5432 only**. Zero tolerance for AWS/external network connections.
+
+## Flow Validator Guidance: pytest-cli
+
+- Treat the testing surface as **read-mostly CLI/Python validation** against the local repo and `quantdb_test`.
+- Use `/Users/tmsincomb/miniforge3/envs/quantdb/bin/python3` for all Python commands.
+- Use explicit localhost engine construction for any direct Python checks:
+  `create_engine(dbUri('quantdb-test-user', 'localhost', 5432, 'quantdb_test'))`.
+- Do **not** use `reflect_models()` with implicit config or `reflect_models(test=True)` during user testing, because mission guidance says orthauth can resolve to AWS.
+- Stay inside the repo and assigned report/evidence paths only.
+- Do not mutate shared database state unless the assigned assertion requires it; for schema-engine validation, prefer read-only reflection/tests.
+- Write one JSON flow report per assigned assertion group and include exact commands, exit codes, and observed results.
