@@ -1,0 +1,15 @@
+commands:
+  install: /Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pip install -e ".[dev]"
+  test: /Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pytest test/ -v --no-header -x
+  test-unit: /Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pytest test/test_generic_ingest.py -v --no-header -x
+  test-integration: /Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pytest test/test_deep_upsert.py -v --no-header -x
+  test-models: /Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pytest test/test_models.py -v --no-header -x
+  python: /Users/tmsincomb/miniforge3/envs/quantdb/bin/python3
+
+services:
+  postgres:
+    start: brew services start postgresql@16
+    stop: brew services stop postgresql@16
+    healthcheck: psql -U quantdb-test-user -h localhost -p 5432 -d quantdb_test -c "SELECT 1" -t -A
+    port: 5432
+    depends_on: []
