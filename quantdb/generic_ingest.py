@@ -782,8 +782,18 @@ def _ensure_obj_desc_inst(
     ODI = odi_info.model
     odi_table = ODI.__table__
 
-    # Check if ANY obj_desc_inst row exists for this object
-    stmt = select(ODI).where(odi_table.c.object == object_uuid).limit(1)
+    # Check if the SPECIFIC (object, desc_inst) pair exists.
+    # The composite FK on values_quant/values_cat is
+    # FOREIGN KEY (object, desc_inst) REFERENCES obj_desc_inst (object, desc_inst),
+    # so the exact pair must be present — not just any row for this object.
+    stmt = (
+        select(ODI)
+        .where(
+            odi_table.c.object == object_uuid,
+            odi_table.c.desc_inst == desc_inst_id,
+        )
+        .limit(1)
+    )
     existing = session.execute(stmt).scalar_one_or_none()
     if existing is not None:
         return

@@ -832,3 +832,153 @@ class TestServerDefaultsOmitted:
         assert inst.label == 'count'
         # Not created — found existing row even without shape in filter
         assert created is False
+
+
+# ---------------------------------------------------------------------------
+# Regression: _ensure_obj_desc_inst must match the SPECIFIC (object, desc_inst) pair
+# ---------------------------------------------------------------------------
+
+
+class TestObjDescInstSpecificPair:
+    """Regression: _ensure_obj_desc_inst creates the exact (object, desc_inst)
+    pair needed, even when the object already has a DIFFERENT desc_inst
+    mapping in obj_desc_inst.
+
+    The composite FK on values_quant/values_cat is::
+
+        FOREIGN KEY (object, desc_inst) REFERENCES obj_desc_inst (object, desc_inst)
+
+    If the helper only checks ``WHERE object = ?`` (any row), it
+    short-circuits and does NOT create the specific pair needed for the
+    new desc_inst, causing the composite FK to fail on INSERT.
+    """
+
+    def test_second_desc_inst_auto_created(
+        self,
+        session: Session,
+        reflected: ReflectedModels,
+        schema: SchemaGraph,
+    ) -> None:
+        """Object with obj_desc_inst for 'nerve' can also get
+        obj_desc_inst for 'fascicle-cross-section' via deep_upsert.
+
+        Steps:
+            1. Find a non-dataset object with no obj_desc_inst rows.
+            2. Manually create obj_desc_inst for desc_inst='nerve' (id 14).
+            3. deep_upsert a values_quant referencing
+               desc_inst='fascicle-cross-section' (id 25) with a
+               matching values_inst row whose desc_inst is also 25
+               (required by values_quant_check_before trigger).
+            4. Verify a *second* obj_desc_inst row was auto-created for
+               the fascicle-cross-section pair.
+        """
+        Objects = reflected.Objects
+        ODI = reflected.ObjDescInst
+        ODQ = reflected.ObjDescQuant
+        VQ = reflected.ValuesQuant
+        DI = reflected.DescriptorsInst
+        DQ = reflected.DescriptorsQuant
+        VI = reflected.ValuesInst
+
+        # 1. Find an object with NO obj_desc_inst rows
+        obj = session.execute(
+            select(Objects)
+            .where(
+                Objects.id_type != 'dataset',
+                ~Objects.id.in_(
+                    select(ODI.__table__.c.object),
+                ),
+            )
+            .limit(1),
+        ).scalar_one_or_none()
+        if obj is None:
+            pytest.skip('No non-dataset object without obj_desc_inst')
+
+        fresh_uuid = obj.id
+
+        # Look up the two distinct desc_inst IDs
+        nerve_id = _lookup_id(session, DI, 'label', 'nerve')
+        fascicle_id = _lookup_id(session, DI, 'label', 'fascicle-cross-section')
+        assert nerve_id != fascicle_id, 'Test requires two distinct desc_inst'
+
+        # 2. Manually create an obj_desc_inst for (object, nerve)
+        odi_nerve = ODI(
+            object=fresh_uuid,
+            desc_inst=nerve_id,
+            addr_field=1,
+        )
+        session.add(odi_nerve)
+        session.flush()
+
+        # Confirm exactly 1 obj_desc_inst row exists for this object
+        odi_count = (
+            session.execute(
+                select(ODI).where(ODI.__table__.c.object == fresh_uuid),
+            )
+            .scalars()
+            .all()
+        )
+        assert len(odi_count) == 1
+
+        # 3. deep_upsert a values_quant referencing
+        #    desc_inst='fascicle-cross-section'.  Use a values_inst row
+        #    whose desc_inst is also fascicle-cross-section (required by
+        #    the values_quant_check_before trigger) and a desc_quant
+        #    whose domain matches (domain=25 or domain IS NULL).
+        vi = session.execute(
+            select(VI).where(VI.desc_inst == fascicle_id).limit(1),
+        ).scalar_one_or_none()
+        if vi is None:
+            pytest.skip('No values_inst row with desc_inst=fascicle-cross-section')
+
+        dq = session.execute(
+            select(DQ).where((DQ.domain == fascicle_id) | DQ.domain.is_(None)).limit(1),
+        ).scalar_one()
+
+        cache: FKCache = {}
+        result = deep_upsert(
+            session,
+            VQ,
+            schema,
+            {
+                'value': 99.0,
+                'value_blob': 99.0,
+                'object': fresh_uuid,
+                'desc_inst': fascicle_id,
+                'desc_quant': dq.id,
+                'instance': vi.id,
+            },
+            cache,
+        )
+        assert result is not None
+        assert result.value == 99.0
+
+        # 4. Verify TWO obj_desc_inst rows exist — one for nerve,
+        #    one for fascicle-cross-section
+        odi_rows = (
+            session.execute(
+                select(ODI).where(ODI.__table__.c.object == fresh_uuid),
+            )
+            .scalars()
+            .all()
+        )
+        assert len(odi_rows) == 2, (
+            f'Expected 2 obj_desc_inst rows but found {len(odi_rows)}; '
+            f'_ensure_obj_desc_inst must match the specific (object, desc_inst) pair'
+        )
+
+        # Verify the specific pairs
+        odi_desc_inst_ids = {row.desc_inst for row in odi_rows}
+        assert nerve_id in odi_desc_inst_ids, 'Original nerve pair missing'
+        assert fascicle_id in odi_desc_inst_ids, 'fascicle-cross-section pair was not auto-created'
+
+        # Also verify obj_desc_quant was auto-created for the new pair
+        odq_row = session.execute(
+            select(ODQ)
+            .where(
+                ODQ.__table__.c.object == fresh_uuid,
+                ODQ.__table__.c.desc_quant == dq.id,
+            )
+            .limit(1),
+        ).scalar_one_or_none()
+        assert odq_row is not None, 'obj_desc_quant should have been auto-created'
