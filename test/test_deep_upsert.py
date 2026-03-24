@@ -1719,8 +1719,11 @@ class TestNoExternalURLs:
             capture_output=True,
             text=True,
         )
-        # rg exit code: 0 = matches, 1 = no matches, 2 = error
-        assert result.returncode != 0, f'External URLs found in test files:\n{result.stdout}'
+        # rg exit code: 0 = matches found, 1 = no matches, 2 = error
+        assert result.returncode == 1, (
+            f'Expected rg exit code 1 (no matches), got {result.returncode}. '
+            f'stdout={result.stdout!r}, stderr={result.stderr!r}'
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1847,9 +1850,21 @@ class TestBatch100PlusRows:
 
         results = ingest.batch(session, 'values_quant', rows)
         assert len(results) == 100, f'Expected 100 results, got {len(results)}'
+
+        # Verify 100 distinct primary keys
+        pks = {r.id for r in results}
+        assert len(pks) == 100, f'Expected 100 distinct primary keys, got {len(pks)}'
+
         # Every row references the correct object
         for r in results:
             assert r.object == obj.id
+
+        # Verify via raw SQL that 100 rows actually exist in the DB
+        db_count = session.execute(
+            text('SELECT COUNT(*) FROM quantdb.values_quant ' 'WHERE object = :oid AND desc_quant = :dqid'),
+            {'oid': str(obj.id), 'dqid': dq.id},
+        ).scalar_one()
+        assert db_count == 100, f'Expected 100 rows in DB via raw SQL, got {db_count}'
 
 
 # ---------------------------------------------------------------------------
