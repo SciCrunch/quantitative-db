@@ -445,9 +445,9 @@ class TestEnumColumnsAsStrings:
 
 
 class TestTriggerOrdering:
-    """deep_upsert auto-creates obj_desc_inst before obj_desc_quant."""
+    """deep_upsert auto-creates prerequisite rows for trigger ordering."""
 
-    def test_auto_creates_obj_desc_inst(
+    def test_auto_creates_obj_desc_inst_for_obj_desc_quant(
         self,
         session: Session,
         reflected: ReflectedModels,
@@ -516,6 +516,202 @@ class TestTriggerOrdering:
             select(ODI).where(ODI.__table__.c.object == fresh_uuid).limit(1),
         ).scalar_one_or_none()
         assert odi is not None
+
+    def test_values_quant_auto_creates_both_prerequisites(
+        self,
+        session: Session,
+        reflected: ReflectedModels,
+        schema: SchemaGraph,
+    ) -> None:
+        """VAL-UPSERT-009: values_quant auto-creates obj_desc_inst AND
+        obj_desc_quant without pre-creation.
+
+        Insert a fresh ``values_quant`` row via ``deep_upsert`` for an
+        object that has NO ``obj_desc_inst`` or ``obj_desc_quant`` rows.
+        The system must auto-create both prerequisite rows.
+        """
+        Objects = reflected.Objects
+        VQ = reflected.ValuesQuant
+        ODI = reflected.ObjDescInst
+        ODQ = reflected.ObjDescQuant
+
+        # Find a non-dataset object with NO obj_desc_inst rows
+        obj = session.execute(
+            select(Objects)
+            .where(
+                Objects.id_type != 'dataset',
+                ~Objects.id.in_(
+                    select(ODI.__table__.c.object),
+                ),
+            )
+            .limit(1),
+        ).scalar_one_or_none()
+        if obj is None:
+            pytest.skip('No non-dataset object without obj_desc_inst')
+
+        fresh_uuid = obj.id
+
+        # Verify no obj_desc_inst and no obj_desc_quant for this object
+        assert (
+            session.execute(
+                select(ODI).where(ODI.__table__.c.object == fresh_uuid),
+            ).scalar_one_or_none()
+            is None
+        )
+        assert (
+            session.execute(
+                select(ODQ).where(ODQ.__table__.c.object == fresh_uuid),
+            ).scalar_one_or_none()
+            is None
+        )
+
+        # Use an existing values_inst row and a desc_quant with
+        # domain=NULL so the values_quant_check_before trigger passes
+        # for any desc_inst.
+        VI = reflected.ValuesInst
+        vi = session.execute(select(VI).limit(1)).scalar_one()
+
+        DQ = reflected.DescriptorsQuant
+        dq = session.execute(
+            select(DQ).where(DQ.domain.is_(None)).limit(1),
+        ).scalar_one()
+
+        # deep_upsert on values_quant — NO pre-created obj_desc_inst
+        # or obj_desc_quant.
+        cache: FKCache = {}
+        result = deep_upsert(
+            session,
+            VQ,
+            schema,
+            {
+                'value': 42.0,
+                'value_blob': 42.0,
+                'object': fresh_uuid,
+                'desc_inst': vi.desc_inst,
+                'desc_quant': dq.id,
+                'instance': vi.id,
+            },
+            cache,
+        )
+        assert result is not None
+        assert result.value == 42.0
+        assert result.object == fresh_uuid
+
+        # Verify obj_desc_inst was auto-created
+        odi = session.execute(
+            select(ODI).where(ODI.__table__.c.object == fresh_uuid).limit(1),
+        ).scalar_one_or_none()
+        assert odi is not None, 'obj_desc_inst should have been auto-created'
+
+        # Verify obj_desc_quant was auto-created
+        odq = session.execute(
+            select(ODQ)
+            .where(
+                ODQ.__table__.c.object == fresh_uuid,
+                ODQ.__table__.c.desc_quant == dq.id,
+            )
+            .limit(1),
+        ).scalar_one_or_none()
+        assert odq is not None, 'obj_desc_quant should have been auto-created'
+
+    def test_values_cat_auto_creates_both_prerequisites(
+        self,
+        session: Session,
+        reflected: ReflectedModels,
+        schema: SchemaGraph,
+    ) -> None:
+        """VAL-UPSERT-009: values_cat auto-creates obj_desc_inst AND
+        obj_desc_cat without pre-creation.
+
+        Insert a fresh ``values_cat`` row via ``deep_upsert`` for an
+        object that has NO ``obj_desc_inst`` or ``obj_desc_cat`` rows.
+        The system must auto-create both prerequisite rows.
+        """
+        Objects = reflected.Objects
+        VC = reflected.ValuesCat
+        ODI = reflected.ObjDescInst
+        ODC = reflected.ObjDescCat
+
+        # Find a non-dataset object with NO obj_desc_inst rows
+        obj = session.execute(
+            select(Objects)
+            .where(
+                Objects.id_type != 'dataset',
+                ~Objects.id.in_(
+                    select(ODI.__table__.c.object),
+                ),
+            )
+            .limit(1),
+        ).scalar_one_or_none()
+        if obj is None:
+            pytest.skip('No non-dataset object without obj_desc_inst')
+
+        fresh_uuid = obj.id
+
+        # Verify no obj_desc_inst and no obj_desc_cat for this object
+        assert (
+            session.execute(
+                select(ODI).where(ODI.__table__.c.object == fresh_uuid),
+            ).scalar_one_or_none()
+            is None
+        )
+        assert (
+            session.execute(
+                select(ODC).where(ODC.__table__.c.object == fresh_uuid),
+            ).scalar_one_or_none()
+            is None
+        )
+
+        # Use an existing values_inst row
+        VI = reflected.ValuesInst
+        vi = session.execute(select(VI).limit(1)).scalar_one()
+
+        # Use a desc_cat with domain=NULL so desc_inst check passes
+        DC = reflected.DescriptorsCat
+        dc = session.execute(
+            select(DC).where(DC.domain.is_(None)).limit(1),
+        ).scalar_one()
+
+        # Find a controlled_term for the value_controlled field
+        CT = reflected.ControlledTerms
+        ct = session.execute(select(CT).limit(1)).scalar_one()
+
+        # deep_upsert on values_cat — NO pre-created obj_desc_inst
+        # or obj_desc_cat.
+        cache: FKCache = {}
+        result = deep_upsert(
+            session,
+            VC,
+            schema,
+            {
+                'value_open': ct.label,
+                'value_controlled': ct.id,
+                'object': fresh_uuid,
+                'desc_inst': vi.desc_inst,
+                'desc_cat': dc.id,
+                'instance': vi.id,
+            },
+            cache,
+        )
+        assert result is not None
+        assert result.object == fresh_uuid
+
+        # Verify obj_desc_inst was auto-created
+        odi = session.execute(
+            select(ODI).where(ODI.__table__.c.object == fresh_uuid).limit(1),
+        ).scalar_one_or_none()
+        assert odi is not None, 'obj_desc_inst should have been auto-created'
+
+        # Verify obj_desc_cat was auto-created
+        odc = session.execute(
+            select(ODC)
+            .where(
+                ODC.__table__.c.object == fresh_uuid,
+                ODC.__table__.c.desc_cat == dc.id,
+            )
+            .limit(1),
+        ).scalar_one_or_none()
+        assert odc is not None, 'obj_desc_cat should have been auto-created'
 
 
 # ---------------------------------------------------------------------------

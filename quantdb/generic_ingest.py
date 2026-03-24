@@ -798,6 +798,120 @@ def _ensure_obj_desc_inst(
     session.flush()
 
 
+def _ensure_obj_desc_quant(
+    session: Session,
+    schema: SchemaGraph,
+    object_uuid: Any,
+    desc_quant_id: int,
+    cache: FKCache,
+) -> None:
+    """Ensure an ``obj_desc_quant`` row exists for *(object, desc_quant)*.
+
+    ``values_quant`` has a composite FK
+    ``(object, desc_quant) REFERENCES obj_desc_quant (object, desc_quant)``
+    that must be satisfied before INSERT.  This helper creates the
+    prerequisite row when it does not exist, using the ``constant``
+    address (``addr_type='constant'``, ``addr_field=NULL``, id=1) as
+    the default ``addr_field``.
+
+    Must be called **after** :func:`_ensure_obj_desc_inst` because the
+    ``check_desc_inst_exists()`` trigger on ``obj_desc_quant`` requires
+    an ``obj_desc_inst`` row for the object.
+
+    Args:
+        session: An open SQLAlchemy ``Session``.
+        schema: The :class:`SchemaGraph` for model lookup.
+        object_uuid: UUID of the object.
+        desc_quant_id: ``descriptors_quant.id`` for the descriptor.
+        cache: Transaction-scoped :data:`FKCache` (unused but accepted
+            for interface consistency).
+    """
+    odq_info = schema.tables.get('obj_desc_quant')
+    if odq_info is None or odq_info.model is None:
+        return
+
+    ODQ = odq_info.model
+    odq_table = ODQ.__table__
+
+    # Check if obj_desc_quant row exists for this (object, desc_quant)
+    stmt = (
+        select(ODQ)
+        .where(
+            odq_table.c.object == object_uuid,
+            odq_table.c.desc_quant == desc_quant_id,
+        )
+        .limit(1)
+    )
+    existing = session.execute(stmt).scalar_one_or_none()
+    if existing is not None:
+        return
+
+    odq = ODQ(
+        object=object_uuid,
+        desc_quant=desc_quant_id,
+        addr_field=_DEFAULT_ADDR_FIELD,
+    )
+    session.add(odq)
+    session.flush()
+
+
+def _ensure_obj_desc_cat(
+    session: Session,
+    schema: SchemaGraph,
+    object_uuid: Any,
+    desc_cat_id: int,
+    cache: FKCache,
+) -> None:
+    """Ensure an ``obj_desc_cat`` row exists for *(object, desc_cat)*.
+
+    ``values_cat`` has a composite FK
+    ``(object, desc_cat) REFERENCES obj_desc_cat (object, desc_cat)``
+    that must be satisfied before INSERT.  This helper creates the
+    prerequisite row when it does not exist, using the ``constant``
+    address (``addr_type='constant'``, ``addr_field=NULL``, id=1) as
+    the default ``addr_field``.
+
+    Must be called **after** :func:`_ensure_obj_desc_inst` because the
+    ``check_desc_inst_exists()`` trigger on ``obj_desc_cat`` requires
+    an ``obj_desc_inst`` row for the object.
+
+    Args:
+        session: An open SQLAlchemy ``Session``.
+        schema: The :class:`SchemaGraph` for model lookup.
+        object_uuid: UUID of the object.
+        desc_cat_id: ``descriptors_cat.id`` for the descriptor.
+        cache: Transaction-scoped :data:`FKCache` (unused but accepted
+            for interface consistency).
+    """
+    odc_info = schema.tables.get('obj_desc_cat')
+    if odc_info is None or odc_info.model is None:
+        return
+
+    ODC = odc_info.model
+    odc_table = ODC.__table__
+
+    # Check if obj_desc_cat row exists for this (object, desc_cat)
+    stmt = (
+        select(ODC)
+        .where(
+            odc_table.c.object == object_uuid,
+            odc_table.c.desc_cat == desc_cat_id,
+        )
+        .limit(1)
+    )
+    existing = session.execute(stmt).scalar_one_or_none()
+    if existing is not None:
+        return
+
+    odc = ODC(
+        object=object_uuid,
+        desc_cat=desc_cat_id,
+        addr_field=_DEFAULT_ADDR_FIELD,
+    )
+    session.add(odc)
+    session.flush()
+
+
 # ---------------------------------------------------------------------------
 # deep_upsert
 # ---------------------------------------------------------------------------
@@ -868,6 +982,8 @@ def deep_upsert(
             if desc_inst_id is None:
                 desc_inst_id = _infer_desc_inst(session, schema, resolved)
             if desc_inst_id is not None:
+                # Step 2a: obj_desc_inst must exist first (trigger on
+                # obj_desc_quant/obj_desc_cat checks for it)
                 _ensure_obj_desc_inst(
                     session,
                     schema,
@@ -875,6 +991,32 @@ def deep_upsert(
                     desc_inst_id,
                     cache,
                 )
+
+            # Step 2b: obj_desc_quant must exist for values_quant
+            # (composite FK (object, desc_quant) REFERENCES obj_desc_quant)
+            if table_name == 'values_quant':
+                desc_quant_id = resolved.get('desc_quant')
+                if desc_quant_id is not None:
+                    _ensure_obj_desc_quant(
+                        session,
+                        schema,
+                        object_uuid,
+                        desc_quant_id,
+                        cache,
+                    )
+
+            # Step 2c: obj_desc_cat must exist for values_cat
+            # (composite FK (object, desc_cat) REFERENCES obj_desc_cat)
+            if table_name == 'values_cat':
+                desc_cat_id = resolved.get('desc_cat')
+                if desc_cat_id is not None:
+                    _ensure_obj_desc_cat(
+                        session,
+                        schema,
+                        object_uuid,
+                        desc_cat_id,
+                        cache,
+                    )
 
     # -- 3. get_or_create by natural key --
     instance, _created = get_or_create(
