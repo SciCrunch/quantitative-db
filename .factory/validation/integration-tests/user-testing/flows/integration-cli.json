@@ -1,0 +1,38 @@
+{
+  "groupId": "integration-cli",
+  "testedAt": "2026-03-24T23:00:09.456654+00:00",
+  "surface": "pytest CLI",
+  "assignedAssertions": [
+    "VAL-CROSS-001",
+    "VAL-CROSS-002"
+  ],
+  "statusByAssertion": {
+    "VAL-CROSS-001": "pass",
+    "VAL-CROSS-002": "pass"
+  },
+  "overallStatus": "pass",
+  "isolation": {
+    "surface": "pytest CLI against local repo and local PostgreSQL only",
+    "python": "/Users/tmsincomb/miniforge3/envs/quantdb/bin/python3",
+    "database": "postgresql://quantdb-test-user@localhost:5432/quantdb_test",
+    "networkBoundary": "localhost only; no external endpoints",
+    "serialization": "single pytest process",
+    "engineConstruction": "explicit localhost-only per mission AGENTS.md"
+  },
+  "commandsRun": [
+    {
+      "command": "\"/Users/tmsincomb/miniforge3/envs/quantdb/bin/python3\" -m pytest \"/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/test/test_deep_upsert.py::TestEndToEndReflectInsertVerify\" \"/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/test/test_deep_upsert.py::TestNoExternalURLs\" -vv -rA --no-header --ignore=\"/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/test/test_api.py\"",
+      "exitCode": 0,
+      "observation": "Targeted pytest collected 2 tests and both passed in 0.15s; the run emitted 16 pre-existing SQLAlchemy SAWarnings during mapper configuration but no failures, skips, or external URL matches."
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "toolsUsed": [
+    "pytest"
+  ],
+  "evidencePaths": [
+    "integration-tests/integration-cli/pytest-targeted-output.txt"
+  ],
+  "summary": "Validated VAL-CROSS-001 and VAL-CROSS-002 through the pytest CLI surface. The end-to-end reflect\u2192Ingest\u2192insert\u2192raw-SQL verification test passed, and the scoped ripgrep-based external URL check passed with no matches."
+}
