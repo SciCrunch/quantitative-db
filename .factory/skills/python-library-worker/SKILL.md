@@ -58,10 +58,11 @@ None.
 
 ### Step 5: Verify
 
-1. Run the full test suite: `/Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pytest test/ -v --no-header -x`
-2. Ensure no regressions in existing tests (test_models.py: 45 tests, test_ingest_f006.py: 29 tests)
-3. Check for import errors: `/Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -c "from quantdb.generic_ingest import SchemaGraph, Ingest, deep_upsert"`
+1. Run the full test suite: `/Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pytest test/ -v --no-header -x --ignore=test/test_api.py`
+2. Ensure no regressions in existing tests
+3. Check for import errors on the symbols YOUR feature created (not future features)
 4. Verify no external URLs in test code: `rg 'amazonaws|cassava\.ucsd' test/`
+5. Run pre-commit formatters on changed files: `cd "/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db" && pre-commit run --files <your_files>` and commit any fixes
 
 ### Step 6: Commit
 
