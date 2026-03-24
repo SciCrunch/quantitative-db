@@ -1107,6 +1107,9 @@ def _format_db_error(table_name: str, exc: Exception) -> str:
         message_detail = getattr(diag, 'message_detail', None)
         if message_detail:
             parts.append(message_detail)
+        context = getattr(diag, 'context', None)
+        if context:
+            parts.append(context)
     elif orig is not None:
         parts.append(str(orig))
     else:
@@ -1203,6 +1206,14 @@ class Ingest:
             ...     instance={'dataset': '2a3d01c0-...', 'id_formal': 'sub'})
         """
         model = self._get_model(table_name)
+        # Guard: block direct inserts into lookup tables
+        table_info = self.schema.tables.get(table_name)
+        if table_info is not None and table_info.is_lookup:
+            raise LookupTableError(
+                f"Cannot insert directly into lookup table '{table_name}'. "
+                f'Lookup tables are pre-populated and must not be modified '
+                f'via Ingest.row().',
+            )
         try:
             return deep_upsert(session, model, self.schema, kwargs)
         except (LookupTableError, ValueError):

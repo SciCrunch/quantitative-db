@@ -16,7 +16,7 @@ import uuid
 from typing import Any, Generator
 
 import pytest
-from sqlalchemy import create_engine, event, select
+from sqlalchemy import create_engine, delete, event, select, text
 from sqlalchemy.orm import Session
 
 from quantdb.generic_ingest import (
@@ -1230,20 +1230,22 @@ class TestIngestGet:
 
 
 class TestIngestErrorMessages:
-    """Error messages include table name and constraint info."""
+    """Error messages include table name and constraint/trigger info."""
 
-    def test_constraint_error_includes_table_name(
+    def test_error_includes_table_name_and_trigger_identifier(
         self,
         session: Session,
         reflected: ReflectedModels,
         schema: SchemaGraph,
         ingest: Ingest,
     ) -> None:
-        """VAL-API-005: Error on trigger/constraint includes table name.
+        """VAL-API-005: Error includes table name AND constraint/trigger ID.
 
         Deliberately pass incompatible desc_inst + instance to
-        values_quant to trigger the values_quant_check_before trigger.
-        The error message should include the table name.
+        values_quant to trigger the ``values_quant_check_before``
+        trigger.  The raised ``IngestError`` message must include:
+        (a) the table name ``'values_quant'`` and (b) the trigger
+        function name or constraint identifier.
         """
         obj = _fresh_object(session, reflected)
         if obj is None:
@@ -1265,7 +1267,7 @@ class TestIngestErrorMessages:
             select(DQ).where(DQ.domain.is_(None)).limit(1),
         ).scalar_one()
 
-        with pytest.raises((IngestError, Exception)) as exc_info:
+        with pytest.raises(IngestError) as exc_info:
             ingest.row(
                 session,
                 'values_quant',
@@ -1278,8 +1280,13 @@ class TestIngestErrorMessages:
             )
 
         error_msg = str(exc_info.value)
-        # Should mention the table name somewhere in the chain
-        assert 'values_quant' in error_msg or isinstance(exc_info.value, IngestError)
+        # (a) Must include the table name
+        assert 'values_quant' in error_msg, f'Error message should contain table name: {error_msg}'
+        # (b) Must include the constraint name OR trigger function name
+        has_identifier = (
+            'constraint' in error_msg.lower() or 'check_before' in error_msg or 'values_quant_check_before' in error_msg
+        )
+        assert has_identifier, f'Error message should contain constraint or trigger ' f'identifier: {error_msg}'
 
 
 # ---------------------------------------------------------------------------
@@ -1288,61 +1295,93 @@ class TestIngestErrorMessages:
 
 
 class TestIngestSessionLifecycle:
-    """Ingest.session() commits on clean exit, rolls back on exception."""
+    """Ingest.session() commits writes on clean exit, rolls back on exception."""
 
-    def test_session_commits_on_clean_exit(
+    def test_session_commits_writes_on_clean_exit(
         self,
         reflected: ReflectedModels,
         ingest: Ingest,
     ) -> None:
-        """VAL-API-006: Data persists after successful with block.
+        """VAL-API-006: Inserted row persists after successful session exit.
 
-        Insert a row via Ingest.session(), then verify it exists in a
-        new session.  Uses rollback at the end to clean up.
+        Insert a temporary ``objects`` row inside ``Ingest.session()``,
+        then verify it is visible in a brand-new session (proving the
+        context manager committed).  Cleanup uses a superuser connection
+        because the ``quantdb-test-user`` role lacks DELETE grants.
         """
-        # Use Ingest.session() to insert, then check in fresh session
-        # We'll look up an existing unit to verify session works
+        test_uuid = uuid.uuid4()
+        Objects = reflected.Objects
+
         with ingest.session() as s:
-            result = ingest.get(s, 'units', label='um')
-            assert result is not None
-            assert result.label == 'um'
-            # Session commits on exit — lookup should have no side effects
+            obj = Objects(id=test_uuid, id_type='collection')
+            s.add(obj)
+            s.flush()
+        # Session commits on clean exit
 
-        # Verify that a new session can also see the data
-        fresh_session = reflected.Session()
+        # Verify committed row is visible in a fresh session
+        fresh = reflected.Session()
         try:
-            result2 = ingest.get(fresh_session, 'units', label='um')
-            assert result2 is not None
-            assert result2.label == 'um'
+            result = fresh.execute(
+                select(Objects).where(
+                    Objects.__table__.c.id == test_uuid,
+                ),
+            ).scalar_one_or_none()
+            assert result is not None, 'Committed row should be visible in new session'
+            assert result.id == test_uuid
+            assert result.id_type == 'collection'
         finally:
-            fresh_session.rollback()
-            fresh_session.close()
+            fresh.close()
 
-    def test_session_rolls_back_on_exception(
+        # Clean up test data via superuser (test user lacks DELETE)
+        cleanup_engine = create_engine(
+            'postgresql://localhost:5432/quantdb_test',
+        )
+        try:
+            with cleanup_engine.connect() as conn:
+                conn.execute(
+                    text(
+                        'DELETE FROM quantdb.objects WHERE id = :id',
+                    ),
+                    {'id': str(test_uuid)},
+                )
+                conn.commit()
+        finally:
+            cleanup_engine.dispose()
+
+    def test_session_rolls_back_writes_on_exception(
         self,
         reflected: ReflectedModels,
         ingest: Ingest,
     ) -> None:
-        """VAL-API-006: Session rolls back on exception.
+        """VAL-API-006: Inserted row absent after exception-triggered rollback.
 
-        Verify that the context manager catches exceptions and performs
-        rollback.
+        Insert a temporary ``objects`` row inside ``Ingest.session()``,
+        then raise an exception.  Verify the row is NOT visible in a
+        new session (proving the context manager rolled back).
         """
+        test_uuid = uuid.uuid4()
+        Objects = reflected.Objects
+
         with pytest.raises(RuntimeError, match='deliberate'):
             with ingest.session() as s:
-                # The session should be usable
-                _ = ingest.get(s, 'units', label='um')
+                obj = Objects(id=test_uuid, id_type='collection')
+                s.add(obj)
+                s.flush()
                 raise RuntimeError('deliberate test exception')
+        # Session should rollback on exception
 
-        # After exception, session should have been closed cleanly
-        # Verify by opening a new session
-        fresh_session = reflected.Session()
+        # Verify rolled-back row is NOT visible in a fresh session
+        fresh = reflected.Session()
         try:
-            result = ingest.get(fresh_session, 'units', label='um')
-            assert result is not None
+            result = fresh.execute(
+                select(Objects).where(
+                    Objects.__table__.c.id == test_uuid,
+                ),
+            ).scalar_one_or_none()
+            assert result is None, 'Rolled-back row should not be visible in new session'
         finally:
-            fresh_session.rollback()
-            fresh_session.close()
+            fresh.rollback()
+            fresh.close()
 
 
 # ---------------------------------------------------------------------------
@@ -1416,6 +1455,104 @@ class TestLookupTableProtection:
 
 
 # ---------------------------------------------------------------------------
+# Regression: Ingest.row() must block direct inserts into lookup tables
+# ---------------------------------------------------------------------------
+
+
+class TestIngestRowLookupTableGuard:
+    """Regression: Ingest.row() raises LookupTableError for lookup tables.
+
+    The scrutiny review found that Ingest.row() allowed direct inserts
+    into lookup tables (units, aspects, descriptors_inst, etc.).  The
+    fix adds a guard at the TOP of Ingest.row() that checks
+    ``table_info.is_lookup`` and raises ``LookupTableError`` before
+    reaching ``deep_upsert``.
+    """
+
+    def test_row_into_units_raises_lookup_table_error(
+        self,
+        session: Session,
+        ingest: Ingest,
+    ) -> None:
+        """Ingest.row(s, 'units', label='test', iri='test') → LookupTableError.
+
+        units is a pre-populated lookup table.  Direct inserts via
+        Ingest.row() must be blocked.
+        """
+        with pytest.raises(LookupTableError, match='units'):
+            ingest.row(session, 'units', label='test', iri='test')
+
+    def test_row_into_aspects_raises_lookup_table_error(
+        self,
+        session: Session,
+        ingest: Ingest,
+    ) -> None:
+        """Ingest.row(s, 'aspects', ...) → LookupTableError."""
+        with pytest.raises(LookupTableError, match='aspects'):
+            ingest.row(session, 'aspects', label='test', iri='test')
+
+    def test_row_into_descriptors_inst_raises_lookup_table_error(
+        self,
+        session: Session,
+        ingest: Ingest,
+    ) -> None:
+        """Ingest.row(s, 'descriptors_inst', ...) → LookupTableError."""
+        with pytest.raises(LookupTableError, match='descriptors_inst'):
+            ingest.row(
+                session,
+                'descriptors_inst',
+                label='test',
+                iri='test',
+            )
+
+    def test_row_into_controlled_terms_raises_lookup_table_error(
+        self,
+        session: Session,
+        ingest: Ingest,
+    ) -> None:
+        """Ingest.row(s, 'controlled_terms', ...) → LookupTableError."""
+        with pytest.raises(LookupTableError, match='controlled_terms'):
+            ingest.row(
+                session,
+                'controlled_terms',
+                label='test',
+                iri='test',
+            )
+
+    def test_row_into_addresses_raises_lookup_table_error(
+        self,
+        session: Session,
+        ingest: Ingest,
+    ) -> None:
+        """Ingest.row(s, 'addresses', ...) → LookupTableError."""
+        with pytest.raises(LookupTableError, match='addresses'):
+            ingest.row(
+                session,
+                'addresses',
+                addr_type='constant',
+                addr_field='test',
+                value_type='single',
+            )
+
+    def test_row_into_non_lookup_table_allowed(
+        self,
+        session: Session,
+        reflected: ReflectedModels,
+        ingest: Ingest,
+    ) -> None:
+        """Ingest.row(s, 'objects', ...) succeeds (not a lookup table)."""
+        test_uuid = uuid.uuid4()
+        result = ingest.row(
+            session,
+            'objects',
+            id=test_uuid,
+            id_type='collection',
+        )
+        assert result is not None
+        assert result.id == test_uuid
+
+
+# ---------------------------------------------------------------------------
 # VAL-CROSS-001: End-to-end reflect-to-insert-to-verify
 # ---------------------------------------------------------------------------
 
@@ -1466,8 +1603,6 @@ class TestEndToEndReflectInsertVerify:
         )
 
         # Verify via raw SQL
-        from sqlalchemy import text
-
         row = session.execute(
             text('SELECT value, object, desc_quant FROM quantdb.values_quant ' 'WHERE id = :id'),
             {'id': result.id},
