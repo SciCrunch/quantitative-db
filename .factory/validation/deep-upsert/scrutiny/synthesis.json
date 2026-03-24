@@ -1,6 +1,6 @@
 {
   "milestone": "deep-upsert",
-  "round": 1,
+  "round": 2,
   "status": "fail",
   "validatorsRun": {
     "test": {
@@ -15,7 +15,7 @@
     },
     "lint": {
       "passed": true,
-      "command": "cd \"/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db\" && /Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pytest test/ --co -q --no-header && echo \"lint check - no flake8/ruff configured\"",
+      "command": "cd \"/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db\" && /Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pytest test/ --co -q --no-header 2>&1 && echo \"lint check - no flake8/ruff configured\"",
       "exitCode": 0
     }
   },
@@ -24,30 +24,23 @@
     "passed": 0,
     "failed": 1,
     "failedFeatures": [
-      "deep-upsert-primitives"
+      "fix-deep-upsert-trigger-ordering"
     ]
   },
   "blockingIssues": [
     {
-      "featureId": "deep-upsert-primitives",
+      "featureId": "fix-deep-upsert-trigger-ordering",
       "severity": "blocking",
-      "description": "deep_upsert does not fully satisfy VAL-UPSERT-009 for values_quant/values_cat: it only ensures some obj_desc_inst row exists for the object and never auto-creates the required obj_desc_quant/obj_desc_cat mapping rows before inserting values_quant/values_cat."
+      "description": "_ensure_obj_desc_inst() still returns after finding any obj_desc_inst row for the object instead of ensuring the required (object, desc_inst) pair exists, so deep_upsert(values_quant/values_cat, ...) can still violate the composite FK when the object already has a different descriptor mapping."
     },
     {
-      "featureId": "deep-upsert-primitives",
+      "featureId": "fix-deep-upsert-trigger-ordering",
       "severity": "blocking",
-      "description": "test/test_deep_upsert.py does not exercise the required deep_upsert(values_quant, ...) trigger-ordering path from VAL-UPSERT-009, so the missing prerequisite-chain behavior went undetected."
+      "description": "The new trigger-ordering tests only cover objects with no obj_desc_inst rows at all and do not exercise the remaining broken case where an object already has a different obj_desc_inst row, leaving the blocking gap unverified."
     }
   ],
   "appliedUpdates": [],
-  "suggestedGuidanceUpdates": [
-    {
-      "target": "AGENTS.md",
-      "suggestion": "Document that repo-wide external-URL greps must exclude or narrowly scope around cached cassava metadata in test/test_ingest_f006.py, because those strings are pre-existing fixtures rather than live external calls.",
-      "evidence": "The deep-upsert scrutiny review found the feature metadata verification step `rg 'amazonaws|cassava\\.ucsd' test/` is stale for this repo: test/test_ingest_f006.py already contains intentional cassava URLs, so a repo-wide grep returns matches even when newly added tests are localhost-only.",
-      "isSystemic": true
-    }
-  ],
+  "suggestedGuidanceUpdates": [],
   "rejectedObservations": [],
-  "previousRound": null
+  "previousRound": ".factory/validation/deep-upsert/scrutiny/synthesis.round-1.json"
 }

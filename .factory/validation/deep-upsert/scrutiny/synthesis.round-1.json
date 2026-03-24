@@ -1,0 +1,53 @@
+{
+  "milestone": "deep-upsert",
+  "round": 1,
+  "status": "fail",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd \"/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db\" && /Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pytest test/ -v --no-header -x --ignore=test/test_api.py",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "echo \"No typechecker configured for this project\"",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "cd \"/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db\" && /Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pytest test/ --co -q --no-header && echo \"lint check - no flake8/ruff configured\"",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "failedFeatures": [
+      "deep-upsert-primitives"
+    ]
+  },
+  "blockingIssues": [
+    {
+      "featureId": "deep-upsert-primitives",
+      "severity": "blocking",
+      "description": "deep_upsert does not fully satisfy VAL-UPSERT-009 for values_quant/values_cat: it only ensures some obj_desc_inst row exists for the object and never auto-creates the required obj_desc_quant/obj_desc_cat mapping rows before inserting values_quant/values_cat."
+    },
+    {
+      "featureId": "deep-upsert-primitives",
+      "severity": "blocking",
+      "description": "test/test_deep_upsert.py does not exercise the required deep_upsert(values_quant, ...) trigger-ordering path from VAL-UPSERT-009, so the missing prerequisite-chain behavior went undetected."
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Document that repo-wide external-URL greps must exclude or narrowly scope around cached cassava metadata in test/test_ingest_f006.py, because those strings are pre-existing fixtures rather than live external calls.",
+      "evidence": "The deep-upsert scrutiny review found the feature metadata verification step `rg 'amazonaws|cassava\\.ucsd' test/` is stale for this repo: test/test_ingest_f006.py already contains intentional cassava URLs, so a repo-wide grep returns matches even when newly added tests are localhost-only.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [],
+  "previousRound": null
+}
