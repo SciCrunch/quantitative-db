@@ -28,8 +28,8 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 
 from sqlalchemy import Table, UniqueConstraint, select
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError, InternalError
+from sqlalchemy.orm import Session, sessionmaker
 
 if TYPE_CHECKING:
     from quantdb.models import ReflectedModels
@@ -44,6 +44,28 @@ CacheKey = tuple[str, frozenset]
 
 #: Transaction-scoped cache mapping :data:`CacheKey` to resolved PK values.
 FKCache = dict[CacheKey, Any]
+
+
+# ---------------------------------------------------------------------------
+# Exceptions
+# ---------------------------------------------------------------------------
+
+
+class IngestError(Exception):
+    """Human-readable error from quantdb ingestion operations.
+
+    Wraps PostgreSQL constraint violations and trigger errors with
+    context about which table and constraint caused the failure.
+    """
+
+
+class LookupTableError(IngestError):
+    """Raised when FK resolution targets a lookup table with an unknown value.
+
+    Lookup tables (``units``, ``aspects``, ``descriptors_inst``,
+    ``controlled_terms``, ``addresses``) are pre-populated and must
+    not have rows silently auto-created during FK resolution.
+    """
 
 
 # ---------------------------------------------------------------------------
@@ -567,7 +589,9 @@ def resolve_fk_value(
         The target table's PK value (``int``, ``UUID``, or ``None``).
 
     Raises:
-        ValueError: If the target row cannot be found.
+        LookupTableError: If the target table is a pre-populated lookup
+            table and the value is not found.
+        ValueError: If the target row cannot be found (non-lookup table).
     """
     # -- pass through already-resolved types --
     if value is None or isinstance(value, (int, _uuid_mod.UUID)):
@@ -614,9 +638,14 @@ def resolve_fk_value(
         stmt = select(pk_col).where(nk_col == value)
         result = session.execute(stmt).scalar_one_or_none()
         if result is None:
-            raise ValueError(
-                f'No {target_table} row with {nk_col_name}={value!r}',
-            )
+            target_info = schema.tables.get(target_table)
+            is_lookup = target_info.is_lookup if target_info else False
+            msg = f'No {target_table} row with {nk_col_name}={value!r}'
+            if is_lookup:
+                raise LookupTableError(
+                    f'{msg} (lookup table — auto-create not allowed)',
+                )
+            raise ValueError(msg)
         cache[cache_key] = result
         return result
 
@@ -667,9 +696,14 @@ def resolve_fk_value(
         stmt = select(pk_col).where(*filters)
         result = session.execute(stmt).scalar_one_or_none()
         if result is None:
-            raise ValueError(
-                f'No {target_table} row matching {resolved_dict}',
-            )
+            target_info_d = schema.tables.get(target_table)
+            is_lookup_d = target_info_d.is_lookup if target_info_d else False
+            msg = f'No {target_table} row matching {resolved_dict}'
+            if is_lookup_d:
+                raise LookupTableError(
+                    f'{msg} (lookup table — auto-create not allowed)',
+                )
+            raise ValueError(msg)
         cache[cache_key] = result
         return result
 
@@ -1036,3 +1070,315 @@ def deep_upsert(
         resolved,
     )
     return instance
+
+
+# ---------------------------------------------------------------------------
+# Error formatting
+# ---------------------------------------------------------------------------
+
+
+def _format_db_error(table_name: str, exc: Exception) -> str:
+    """Format a PostgreSQL error into a human-readable message.
+
+    Extracts constraint name, trigger name, and diagnostic detail from
+    the psycopg2 error wrapped by SQLAlchemy.
+
+    Args:
+        table_name: The target table name.
+        exc: The SQLAlchemy exception (``IntegrityError`` or
+            ``InternalError``).
+
+    Returns:
+        A formatted error string including table name, constraint name
+        (if available), and the database error message.
+    """
+    orig = getattr(exc, 'orig', None)
+    diag = getattr(orig, 'diag', None) if orig is not None else None
+
+    parts: list[str] = [f"Table '{table_name}'"]
+
+    if diag is not None:
+        constraint = getattr(diag, 'constraint_name', None)
+        if constraint:
+            parts.append(f"constraint '{constraint}'")
+        message_primary = getattr(diag, 'message_primary', None)
+        if message_primary:
+            parts.append(message_primary)
+        message_detail = getattr(diag, 'message_detail', None)
+        if message_detail:
+            parts.append(message_detail)
+    elif orig is not None:
+        parts.append(str(orig))
+    else:
+        parts.append(str(exc))
+
+    return ': '.join(parts)
+
+
+# ---------------------------------------------------------------------------
+# Ingest class
+# ---------------------------------------------------------------------------
+
+
+class Ingest:
+    """User-facing single-table API for quantdb ingestion.
+
+    Provides a simple interface for inserting data into the quantdb
+    PostgreSQL schema with automatic FK resolution.  Wraps the
+    :func:`deep_upsert` engine with error handling, batch support,
+    and session lifecycle management.
+
+    Args:
+        models: A :class:`~quantdb.models.ReflectedModels` instance
+            from :func:`~quantdb.models.reflect_models`.
+
+    Attributes:
+        schema: The :class:`SchemaGraph` used for FK metadata.
+
+    Examples:
+        >>> from quantdb.models import reflect_models
+        >>> from sqlalchemy import create_engine
+        >>> from quantdb.utils import dbUri
+        >>> engine = create_engine(dbUri(
+        ...     'quantdb-test-user', 'localhost', 5432, 'quantdb_test'))
+        >>> models = reflect_models(engine=engine)  # doctest: +SKIP
+        >>> ing = Ingest(models)  # doctest: +SKIP
+        >>> with ing.session() as s:  # doctest: +SKIP
+        ...     row = ing.row(s, 'units', label='um')
+        ...     print(row.label)
+        um
+    """
+
+    def __init__(self, models: ReflectedModels) -> None:
+        self._models = models
+        self.schema: SchemaGraph = models.schema_graph  # type: ignore[assignment]
+        if self.schema is None:
+            raise IngestError(
+                'ReflectedModels has no schema_graph. ' 'Use reflect_models() to build it.',
+            )
+        self._model_map: dict[str, type] = _build_model_map(models)
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def row(
+        self,
+        session: Session,
+        table_name: str,
+        **kwargs: Any,
+    ) -> Any:
+        """Insert a single row with automatic FK resolution.
+
+        All FK columns in *kwargs* are resolved from human-readable
+        values (strings, dicts) to integer/UUID PKs via
+        :func:`deep_upsert`.  Trigger-ordering prerequisites
+        (``obj_desc_inst``, ``obj_desc_quant``, ``obj_desc_cat``) are
+        satisfied automatically.
+
+        Args:
+            session: An open SQLAlchemy ``Session``.
+            table_name: Target table name (e.g., ``'values_quant'``).
+            **kwargs: Column name → value pairs.  FK columns may contain
+                ``str`` (single natural key), ``dict`` (composite key),
+                ``int``/``UUID`` (pre-resolved), or ``None``.
+
+        Returns:
+            The created or found ORM instance.
+
+        Raises:
+            IngestError: If the table is unknown or a database
+                constraint/trigger is violated.
+            LookupTableError: If FK resolution fails on a pre-populated
+                lookup table.
+
+        Examples:
+            >>> # Insert a values_quant row with FK resolution
+            >>> ing.row(s, 'values_quant',  # doctest: +SKIP
+            ...     value=42.0,
+            ...     value_blob=42.0,
+            ...     object='2a3d01c0-39d3-464a-8746-54c9d67ebe0f',
+            ...     desc_inst='nerve',
+            ...     desc_quant='count',
+            ...     instance={'dataset': '2a3d01c0-...', 'id_formal': 'sub'})
+        """
+        model = self._get_model(table_name)
+        try:
+            return deep_upsert(session, model, self.schema, kwargs)
+        except (LookupTableError, ValueError):
+            raise
+        except (IntegrityError, InternalError) as e:
+            raise IngestError(_format_db_error(table_name, e)) from e
+
+    def batch(
+        self,
+        session: Session,
+        table_name: str,
+        rows: list[dict[str, Any]],
+    ) -> list[Any]:
+        """Insert multiple rows with a shared FK cache.
+
+        Uses a single :data:`FKCache` across all rows so that repeated
+        FK lookups (e.g., the same ``desc_quant`` label in every row)
+        hit the cache instead of the database.
+
+        Args:
+            session: An open SQLAlchemy ``Session``.
+            table_name: Target table name.
+            rows: List of column name → value dicts.
+
+        Returns:
+            List of created or found ORM instances, one per input row.
+
+        Raises:
+            IngestError: If the table is unknown or a database
+                constraint/trigger is violated.
+            LookupTableError: If FK resolution fails on a pre-populated
+                lookup table.
+
+        Examples:
+            >>> rows = [  # doctest: +SKIP
+            ...     {'value': i, 'value_blob': i, ...}
+            ...     for i in range(10)
+            ... ]
+            >>> results = ing.batch(s, 'values_quant', rows)  # doctest: +SKIP
+            >>> len(results)  # doctest: +SKIP
+            10
+        """
+        model = self._get_model(table_name)
+        cache: FKCache = {}
+        results: list[Any] = []
+        for row_data in rows:
+            try:
+                result = deep_upsert(
+                    session,
+                    model,
+                    self.schema,
+                    row_data,
+                    cache,
+                )
+                results.append(result)
+            except (LookupTableError, ValueError):
+                raise
+            except (IntegrityError, InternalError) as e:
+                raise IngestError(
+                    _format_db_error(table_name, e),
+                ) from e
+        return results
+
+    def get(
+        self,
+        session: Session,
+        table_name: str,
+        **kwargs: Any,
+    ) -> Any | None:
+        """Look up an existing row by column values.
+
+        Builds a ``SELECT ... WHERE`` filter from the provided keyword
+        arguments.  ``None`` values use ``IS NULL`` semantics.
+
+        Args:
+            session: An open SQLAlchemy ``Session``.
+            table_name: Target table name.
+            **kwargs: Column name → value pairs for the lookup filter.
+
+        Returns:
+            The matching ORM instance, or ``None`` if not found.
+
+        Raises:
+            IngestError: If the table is unknown.
+
+        Examples:
+            >>> ing.get(s, 'units', label='um')  # doctest: +SKIP
+            <Units id=... label='um'>
+            >>> ing.get(s, 'units', label='nonexistent') is None  # doctest: +SKIP
+            True
+        """
+        model = self._get_model(table_name)
+        table = model.__table__
+
+        filters = []
+        for col_name, value in kwargs.items():
+            col = table.c.get(col_name)
+            if col is None:
+                continue
+            if value is None:
+                filters.append(col.is_(None))
+            else:
+                filters.append(col == value)
+
+        if not filters:
+            return None
+
+        stmt = select(model).where(*filters)
+        return session.execute(stmt).scalar_one_or_none()
+
+    def session(self) -> _IngestSessionCtx:
+        """Context manager for transaction lifecycle.
+
+        Creates a new ``Session``, commits on clean exit, and rolls back
+        on exception.  Always closes the session when the context exits.
+
+        Returns:
+            A context manager that yields a SQLAlchemy ``Session``.
+
+        Examples:
+            >>> with ing.session() as s:  # doctest: +SKIP
+            ...     ing.row(s, 'units', label='um')
+            ...     # commits automatically on clean exit
+        """
+        return _IngestSessionCtx(self._models.Session)
+
+    # ------------------------------------------------------------------
+    # Internal
+    # ------------------------------------------------------------------
+
+    def _get_model(self, table_name: str) -> type:
+        """Retrieve the ORM model class for a table name.
+
+        Args:
+            table_name: Snake_case table name.
+
+        Returns:
+            The ORM model class.
+
+        Raises:
+            IngestError: If the table name is not recognized.
+        """
+        if table_name not in self._model_map:
+            available = sorted(self._model_map)
+            raise IngestError(
+                f'Unknown table: {table_name!r}. ' f'Available: {", ".join(available)}',
+            )
+        return self._model_map[table_name]
+
+
+class _IngestSessionCtx:
+    """Context manager wrapping a SQLAlchemy Session.
+
+    Commits on clean exit, rolls back on exception, always closes.
+    """
+
+    def __init__(self, session_factory: sessionmaker[Session]) -> None:
+        self._factory = session_factory
+        self._session: Session | None = None
+
+    def __enter__(self) -> Session:
+        self._session = self._factory()
+        return self._session
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: Any,
+    ) -> bool:
+        assert self._session is not None
+        try:
+            if exc_type is None:
+                self._session.commit()
+            else:
+                self._session.rollback()
+        finally:
+            self._session.close()
+        return False  # do not suppress exceptions

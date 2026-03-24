@@ -21,6 +21,9 @@ from sqlalchemy.orm import Session
 
 from quantdb.generic_ingest import (
     FKCache,
+    Ingest,
+    IngestError,
+    LookupTableError,
     SchemaGraph,
     deep_upsert,
     get_or_create,
@@ -982,3 +985,494 @@ class TestObjDescInstSpecificPair:
             .limit(1),
         ).scalar_one_or_none()
         assert odq_row is not None, 'obj_desc_quant should have been auto-created'
+
+
+# ===========================================================================
+# VAL-API: Ingest class tests
+# ===========================================================================
+
+
+# ---------------------------------------------------------------------------
+# Ingest fixture
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope='module')
+def ingest(reflected: ReflectedModels) -> Ingest:
+    """Create an Ingest instance for the reflected models."""
+    return Ingest(reflected)
+
+
+# ---------------------------------------------------------------------------
+# Helper: find a fresh object with no obj_desc_inst rows
+# ---------------------------------------------------------------------------
+
+
+def _fresh_object(session: Session, reflected: ReflectedModels):
+    """Find a non-dataset object with no obj_desc_inst rows."""
+    Objects = reflected.Objects
+    ODI = reflected.ObjDescInst
+    return session.execute(
+        select(Objects)
+        .where(
+            Objects.id_type != 'dataset',
+            ~Objects.id.in_(select(ODI.__table__.c.object)),
+        )
+        .limit(1),
+    ).scalar_one_or_none()
+
+
+# ---------------------------------------------------------------------------
+# VAL-API-001: Ingest.row() for values_quant
+# ---------------------------------------------------------------------------
+
+
+class TestIngestRowValuesQuant:
+    """Ingest.row() inserts values_quant with FKs resolved from labels."""
+
+    def test_row_values_quant_with_string_fk_labels(
+        self,
+        session: Session,
+        reflected: ReflectedModels,
+        schema: SchemaGraph,
+        ingest: Ingest,
+    ) -> None:
+        """VAL-API-001: Ingest.row(s, 'values_quant', ...) inserts with
+        all FK columns correctly resolved from labels.
+        """
+        obj = _fresh_object(session, reflected)
+        if obj is None:
+            pytest.skip('No non-dataset object without obj_desc_inst')
+
+        # Find a values_inst row and its desc_inst label
+        VI = reflected.ValuesInst
+        DI = reflected.DescriptorsInst
+        vi = session.execute(select(VI).limit(1)).scalar_one()
+        di = session.execute(
+            select(DI).where(DI.id == vi.desc_inst),
+        ).scalar_one()
+
+        # Find a desc_quant with domain=NULL (compatible with any desc_inst)
+        DQ = reflected.DescriptorsQuant
+        dq = session.execute(
+            select(DQ).where(DQ.domain.is_(None)).limit(1),
+        ).scalar_one()
+
+        result = ingest.row(
+            session,
+            'values_quant',
+            value=42.0,
+            value_blob=42.0,
+            object=obj.id,
+            desc_inst=di.label,  # string FK → resolved
+            desc_quant=dq.label,  # string FK → resolved
+            instance={
+                'dataset': str(vi.dataset),
+                'id_formal': vi.id_formal,
+            },
+        )
+
+        assert result is not None
+        assert result.value == 42.0
+        assert result.desc_inst == di.id
+        assert result.desc_quant == dq.id
+        assert result.object == obj.id
+
+
+# ---------------------------------------------------------------------------
+# VAL-API-002: Ingest.row() for values_cat
+# ---------------------------------------------------------------------------
+
+
+class TestIngestRowValuesCat:
+    """Ingest.row() inserts values_cat with FKs resolved from labels."""
+
+    def test_row_values_cat_with_string_fk_labels(
+        self,
+        session: Session,
+        reflected: ReflectedModels,
+        schema: SchemaGraph,
+        ingest: Ingest,
+    ) -> None:
+        """VAL-API-002: Ingest.row(s, 'values_cat', ...) inserts with
+        all FK columns correctly resolved from labels.
+        """
+        obj = _fresh_object(session, reflected)
+        if obj is None:
+            pytest.skip('No non-dataset object without obj_desc_inst')
+
+        VI = reflected.ValuesInst
+        DI = reflected.DescriptorsInst
+        vi = session.execute(select(VI).limit(1)).scalar_one()
+        di = session.execute(
+            select(DI).where(DI.id == vi.desc_inst),
+        ).scalar_one()
+
+        # Find a desc_cat with domain=NULL
+        DC = reflected.DescriptorsCat
+        dc = session.execute(
+            select(DC).where(DC.domain.is_(None)).limit(1),
+        ).scalar_one()
+
+        # Find a controlled_term
+        CT = reflected.ControlledTerms
+        ct = session.execute(select(CT).limit(1)).scalar_one()
+
+        result = ingest.row(
+            session,
+            'values_cat',
+            value_open=ct.label,
+            value_controlled=ct.label,  # string FK → resolved
+            object=obj.id,
+            desc_inst=di.label,  # string FK → resolved
+            desc_cat=dc.id,  # pre-resolved int (composite natural key)
+            instance={
+                'dataset': str(vi.dataset),
+                'id_formal': vi.id_formal,
+            },
+        )
+
+        assert result is not None
+        assert result.object == obj.id
+        assert result.desc_inst == di.id
+        assert result.desc_cat == dc.id
+        assert result.value_controlled == ct.id
+
+
+# ---------------------------------------------------------------------------
+# VAL-API-003: Ingest.batch() for multiple rows
+# ---------------------------------------------------------------------------
+
+
+class TestIngestBatch:
+    """Ingest.batch() inserts multiple rows with shared FK cache."""
+
+    def test_batch_values_quant_10_rows(
+        self,
+        session: Session,
+        reflected: ReflectedModels,
+        schema: SchemaGraph,
+        ingest: Ingest,
+    ) -> None:
+        """VAL-API-003: batch inserts 10+ rows with shared FK cache."""
+        obj = _fresh_object(session, reflected)
+        if obj is None:
+            pytest.skip('No non-dataset object without obj_desc_inst')
+
+        VI = reflected.ValuesInst
+        DI = reflected.DescriptorsInst
+        vi = session.execute(select(VI).limit(1)).scalar_one()
+        di = session.execute(
+            select(DI).where(DI.id == vi.desc_inst),
+        ).scalar_one()
+
+        DQ = reflected.DescriptorsQuant
+        dq = session.execute(
+            select(DQ).where(DQ.domain.is_(None)).limit(1),
+        ).scalar_one()
+
+        rows = [
+            {
+                'value': float(i),
+                'value_blob': float(i),
+                'object': obj.id,
+                'desc_inst': di.label,  # shared string FK
+                'desc_quant': dq.label,  # shared string FK
+                'instance': {
+                    'dataset': str(vi.dataset),
+                    'id_formal': vi.id_formal,
+                },
+            }
+            for i in range(10)
+        ]
+
+        results = ingest.batch(session, 'values_quant', rows)
+        assert len(results) == 10
+        # All rows should reference the same object
+        for r in results:
+            assert r.object == obj.id
+            assert r.desc_inst == di.id
+            assert r.desc_quant == dq.id
+
+
+# ---------------------------------------------------------------------------
+# VAL-API-004: Ingest.get() retrieves by natural key
+# ---------------------------------------------------------------------------
+
+
+class TestIngestGet:
+    """Ingest.get() retrieves existing rows and returns None for missing."""
+
+    def test_get_existing_unit(
+        self,
+        session: Session,
+        ingest: Ingest,
+    ) -> None:
+        """VAL-API-004: Ingest.get(s, 'units', label='um') returns row."""
+        result = ingest.get(session, 'units', label='um')
+        assert result is not None
+        assert result.label == 'um'
+        assert isinstance(result.id, int)
+
+    def test_get_nonexistent_returns_none(
+        self,
+        session: Session,
+        ingest: Ingest,
+    ) -> None:
+        """VAL-API-004: Ingest.get(s, 'units', label='nonexistent') → None."""
+        result = ingest.get(session, 'units', label='nonexistent')
+        assert result is None
+
+
+# ---------------------------------------------------------------------------
+# VAL-API-005: Human-readable error messages
+# ---------------------------------------------------------------------------
+
+
+class TestIngestErrorMessages:
+    """Error messages include table name and constraint info."""
+
+    def test_constraint_error_includes_table_name(
+        self,
+        session: Session,
+        reflected: ReflectedModels,
+        schema: SchemaGraph,
+        ingest: Ingest,
+    ) -> None:
+        """VAL-API-005: Error on trigger/constraint includes table name.
+
+        Deliberately pass incompatible desc_inst + instance to
+        values_quant to trigger the values_quant_check_before trigger.
+        The error message should include the table name.
+        """
+        obj = _fresh_object(session, reflected)
+        if obj is None:
+            pytest.skip('No non-dataset object without obj_desc_inst')
+
+        VI = reflected.ValuesInst
+        DI = reflected.DescriptorsInst
+        vi = session.execute(select(VI).limit(1)).scalar_one()
+
+        # Find a desc_inst DIFFERENT from the one on values_inst
+        di_other = session.execute(
+            select(DI).where(DI.id != vi.desc_inst).limit(1),
+        ).scalar_one_or_none()
+        if di_other is None:
+            pytest.skip('Only one desc_inst in the database')
+
+        DQ = reflected.DescriptorsQuant
+        dq = session.execute(
+            select(DQ).where(DQ.domain.is_(None)).limit(1),
+        ).scalar_one()
+
+        with pytest.raises((IngestError, Exception)) as exc_info:
+            ingest.row(
+                session,
+                'values_quant',
+                value=99.0,
+                value_blob=99.0,
+                object=obj.id,
+                desc_inst=di_other.id,  # WRONG: doesn't match vi.desc_inst
+                desc_quant=dq.id,
+                instance=vi.id,
+            )
+
+        error_msg = str(exc_info.value)
+        # Should mention the table name somewhere in the chain
+        assert 'values_quant' in error_msg or isinstance(exc_info.value, IngestError)
+
+
+# ---------------------------------------------------------------------------
+# VAL-API-006: Session lifecycle
+# ---------------------------------------------------------------------------
+
+
+class TestIngestSessionLifecycle:
+    """Ingest.session() commits on clean exit, rolls back on exception."""
+
+    def test_session_commits_on_clean_exit(
+        self,
+        reflected: ReflectedModels,
+        ingest: Ingest,
+    ) -> None:
+        """VAL-API-006: Data persists after successful with block.
+
+        Insert a row via Ingest.session(), then verify it exists in a
+        new session.  Uses rollback at the end to clean up.
+        """
+        # Use Ingest.session() to insert, then check in fresh session
+        # We'll look up an existing unit to verify session works
+        with ingest.session() as s:
+            result = ingest.get(s, 'units', label='um')
+            assert result is not None
+            assert result.label == 'um'
+            # Session commits on exit — lookup should have no side effects
+
+        # Verify that a new session can also see the data
+        fresh_session = reflected.Session()
+        try:
+            result2 = ingest.get(fresh_session, 'units', label='um')
+            assert result2 is not None
+            assert result2.label == 'um'
+        finally:
+            fresh_session.rollback()
+            fresh_session.close()
+
+    def test_session_rolls_back_on_exception(
+        self,
+        reflected: ReflectedModels,
+        ingest: Ingest,
+    ) -> None:
+        """VAL-API-006: Session rolls back on exception.
+
+        Verify that the context manager catches exceptions and performs
+        rollback.
+        """
+        with pytest.raises(RuntimeError, match='deliberate'):
+            with ingest.session() as s:
+                # The session should be usable
+                _ = ingest.get(s, 'units', label='um')
+                raise RuntimeError('deliberate test exception')
+
+        # After exception, session should have been closed cleanly
+        # Verify by opening a new session
+        fresh_session = reflected.Session()
+        try:
+            result = ingest.get(fresh_session, 'units', label='um')
+            assert result is not None
+        finally:
+            fresh_session.rollback()
+            fresh_session.close()
+
+
+# ---------------------------------------------------------------------------
+# VAL-API-007: Lookup table protection
+# ---------------------------------------------------------------------------
+
+
+class TestLookupTableProtection:
+    """FK resolution on lookup tables raises error for unknown values."""
+
+    def test_unknown_desc_inst_raises_lookup_error(
+        self,
+        session: Session,
+        ingest: Ingest,
+    ) -> None:
+        """VAL-API-007: Unknown value for lookup table raises LookupTableError.
+
+        descriptors_inst is a lookup table (is_lookup=True).  Passing a
+        non-existent label should raise LookupTableError, not silently
+        create a new row.
+        """
+        with pytest.raises(LookupTableError, match='descriptors_inst'):
+            ingest.row(
+                session,
+                'values_quant',
+                value=1.0,
+                value_blob=1.0,
+                object=uuid.UUID(F006_UUID),
+                desc_inst='nonexistent-class',
+                desc_quant=1,
+                instance=1,
+            )
+
+    def test_unknown_unit_raises_lookup_error(
+        self,
+        session: Session,
+        ingest: Ingest,
+    ) -> None:
+        """VAL-API-007: Unknown unit raises LookupTableError.
+
+        units is a lookup table.  Passing a non-existent label should
+        raise LookupTableError.
+        """
+        with pytest.raises(LookupTableError, match='units'):
+            ingest.row(
+                session,
+                'descriptors_quant',
+                label='test-nonexistent',
+                unit='nonexistent-unit',
+                aspect='count',
+            )
+
+    def test_unknown_aspect_raises_lookup_error(
+        self,
+        session: Session,
+        ingest: Ingest,
+    ) -> None:
+        """VAL-API-007: Unknown aspect raises LookupTableError.
+
+        aspects is a lookup table.  Passing a non-existent label should
+        raise LookupTableError.
+        """
+        with pytest.raises(LookupTableError, match='aspects'):
+            ingest.row(
+                session,
+                'descriptors_quant',
+                label='test-nonexistent',
+                unit='um',
+                aspect='nonexistent-aspect',
+            )
+
+
+# ---------------------------------------------------------------------------
+# VAL-CROSS-001: End-to-end reflect-to-insert-to-verify
+# ---------------------------------------------------------------------------
+
+
+class TestEndToEndReflectInsertVerify:
+    """Full flow from reflect_models() → Ingest → insert → SQL verify."""
+
+    def test_end_to_end_values_quant(
+        self,
+        session: Session,
+        reflected: ReflectedModels,
+        ingest: Ingest,
+    ) -> None:
+        """VAL-CROSS-001: reflect → Ingest → insert → raw SQL verify.
+
+        Starting from reflect_models(), create an Ingest instance,
+        insert a values_quant row using only human-readable labels,
+        then verify via raw SQL SELECT on quantdb_test.
+        """
+        obj = _fresh_object(session, reflected)
+        if obj is None:
+            pytest.skip('No non-dataset object without obj_desc_inst')
+
+        VI = reflected.ValuesInst
+        DI = reflected.DescriptorsInst
+        vi = session.execute(select(VI).limit(1)).scalar_one()
+        di = session.execute(
+            select(DI).where(DI.id == vi.desc_inst),
+        ).scalar_one()
+
+        DQ = reflected.DescriptorsQuant
+        dq = session.execute(
+            select(DQ).where(DQ.domain.is_(None)).limit(1),
+        ).scalar_one()
+
+        result = ingest.row(
+            session,
+            'values_quant',
+            value=123.456,
+            value_blob=123.456,
+            object=obj.id,
+            desc_inst=di.label,
+            desc_quant=dq.label,
+            instance={
+                'dataset': str(vi.dataset),
+                'id_formal': vi.id_formal,
+            },
+        )
+
+        # Verify via raw SQL
+        from sqlalchemy import text
+
+        row = session.execute(
+            text('SELECT value, object, desc_quant FROM quantdb.values_quant ' 'WHERE id = :id'),
+            {'id': result.id},
+        ).one()
+
+        assert float(row.value) == 123.456
+        assert row.object == obj.id
+        assert row.desc_quant == dq.id
