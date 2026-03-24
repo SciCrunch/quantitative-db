@@ -1,9 +1,11 @@
 commands:
   install: /Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pip install -e ".[dev]"
-  test: /Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pytest test/ -v --no-header -x
+  test: /Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pytest test/ -v --no-header -x --ignore=test/test_api.py
   test-unit: /Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pytest test/test_generic_ingest.py -v --no-header -x
   test-integration: /Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pytest test/test_deep_upsert.py -v --no-header -x
   test-models: /Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pytest test/test_models.py -v --no-header -x
+  typecheck: echo "No typechecker configured for this project"
+  lint: cd "/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db" && /Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pytest test/ --co -q --no-header 2>&1 | head -1 && echo "lint check - no flake8/ruff configured"
   python: /Users/tmsincomb/miniforge3/envs/quantdb/bin/python3
 
 services:

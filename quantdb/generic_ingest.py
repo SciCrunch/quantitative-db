@@ -276,9 +276,7 @@ def _kahn_topo_sort(
 
     if len(topo_order) != len(dep_graph):
         missing = set(dep_graph) - set(topo_order)
-        raise RuntimeError(
-            f'Topological sort incomplete; unresolved tables: {missing}'
-        )
+        raise RuntimeError(f'Topological sort incomplete; unresolved tables: {missing}')
 
     return topo_order, topo_levels
 
@@ -342,10 +340,7 @@ class SchemaGraph:
             tables_by_name[table.name] = table
 
         # 1. Compute natural keys for all tables
-        natural_keys: dict[str, list[str]] = {
-            name: _compute_natural_key(tbl)
-            for name, tbl in tables_by_name.items()
-        }
+        natural_keys: dict[str, list[str]] = {name: _compute_natural_key(tbl) for name, tbl in tables_by_name.items()}
 
         # 2. Build FK dependency graph and per-table fk_maps
         dep_graph: dict[str, set[str]] = {}
@@ -401,10 +396,7 @@ class SchemaGraph:
                 unique_constraints=_get_unique_constraints(table),
                 natural_key=natural_keys[name],
                 topo_level=topo_levels[name],
-                is_lookup=(
-                    topo_levels[name] == 0
-                    and name not in tables_in_cycles
-                ),
+                is_lookup=(topo_levels[name] == 0 and name not in tables_in_cycles),
             )
 
         return cls(

@@ -17,7 +17,6 @@ from quantdb.generic_ingest import FKInfo, SchemaGraph, TableInfo
 from quantdb.models import ReflectedModels, reflect_models
 from quantdb.utils import dbUri
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -92,9 +91,7 @@ class TestSchemaGraphBuild:
     ) -> None:
         """Every value in tables dict is a TableInfo."""
         for name, info in schema_graph.tables.items():
-            assert isinstance(info, TableInfo), (
-                f'{name} is {type(info)}, expected TableInfo'
-            )
+            assert isinstance(info, TableInfo), f'{name} is {type(info)}, expected TableInfo'
 
 
 # ---------------------------------------------------------------------------
@@ -106,8 +103,11 @@ class TestTopologicalSort:
     """Verify the topological ordering invariants."""
 
     ROOT_TABLES: set[str] = {
-        'units', 'aspects', 'descriptors_inst',
-        'addresses', 'controlled_terms',
+        'units',
+        'aspects',
+        'descriptors_inst',
+        'addresses',
+        'controlled_terms',
     }
     LEAF_TABLES: set[str] = {'values_quant', 'values_cat'}
 
@@ -119,9 +119,7 @@ class TestTopologicalSort:
         order = schema_graph.topo_order
         for root in self.ROOT_TABLES:
             for leaf in self.LEAF_TABLES:
-                assert order.index(root) < order.index(leaf), (
-                    f'{root} should come before {leaf}'
-                )
+                assert order.index(root) < order.index(leaf), f'{root} should come before {leaf}'
 
     def test_no_table_before_its_dependencies(
         self,
@@ -135,9 +133,7 @@ class TestTopologicalSort:
                 # Skip circular deps (those edges are intentionally broken)
                 if frozenset([name, target]) in schema_graph.circular_deps:
                     continue
-                assert order.index(target) < order.index(name), (
-                    f'{target} should come before {name} (via FK {fk_col})'
-                )
+                assert order.index(target) < order.index(name), f'{target} should come before {name} (via FK {fk_col})'
 
     def test_topo_order_contains_all_tables(
         self,
@@ -220,8 +216,7 @@ class TestFKMap:
             for col_name, fk_info in info.fk_map.items():
                 assert fk_info.column == col_name
                 assert fk_info.target_table in schema_graph.tables, (
-                    f'{name}.{col_name} points to unknown table '
-                    f'{fk_info.target_table}'
+                    f'{name}.{col_name} points to unknown table ' f'{fk_info.target_table}'
                 )
 
 
@@ -233,13 +228,16 @@ class TestFKMap:
 class TestNaturalKey:
     """Verify natural key detection for key tables."""
 
-    @pytest.mark.parametrize('table,expected', [
-        ('units', ['label']),
-        ('aspects', ['label']),
-        ('descriptors_inst', ['label']),
-        ('controlled_terms', ['label']),
-        ('descriptors_quant', ['label']),
-    ])
+    @pytest.mark.parametrize(
+        'table,expected',
+        [
+            ('units', ['label']),
+            ('aspects', ['label']),
+            ('descriptors_inst', ['label']),
+            ('controlled_terms', ['label']),
+            ('descriptors_quant', ['label']),
+        ],
+    )
     def test_single_label_natural_key(
         self,
         schema_graph: SchemaGraph,
@@ -255,7 +253,9 @@ class TestNaturalKey:
     ) -> None:
         """addresses has composite natural key."""
         assert schema_graph.tables['addresses'].natural_key == [
-            'addr_type', 'addr_field', 'value_type',
+            'addr_type',
+            'addr_field',
+            'value_type',
         ]
 
     def test_values_inst_natural_key(
@@ -264,7 +264,8 @@ class TestNaturalKey:
     ) -> None:
         """values_inst has natural_key=['dataset', 'id_formal']."""
         assert schema_graph.tables['values_inst'].natural_key == [
-            'dataset', 'id_formal',
+            'dataset',
+            'id_formal',
         ]
 
 
@@ -300,10 +301,16 @@ class TestCircularDeps:
 class TestTableClassification:
     """Verify lookup vs create table classification."""
 
-    @pytest.mark.parametrize('table', [
-        'units', 'aspects', 'descriptors_inst',
-        'controlled_terms', 'addresses',
-    ])
+    @pytest.mark.parametrize(
+        'table',
+        [
+            'units',
+            'aspects',
+            'descriptors_inst',
+            'controlled_terms',
+            'addresses',
+        ],
+    )
     def test_lookup_tables(
         self,
         schema_graph: SchemaGraph,
@@ -312,9 +319,15 @@ class TestTableClassification:
         """Pre-populated tables have is_lookup=True."""
         assert schema_graph.tables[table].is_lookup is True
 
-    @pytest.mark.parametrize('table', [
-        'values_quant', 'values_cat', 'values_inst', 'objects',
-    ])
+    @pytest.mark.parametrize(
+        'table',
+        [
+            'values_quant',
+            'values_cat',
+            'values_inst',
+            'objects',
+        ],
+    )
     def test_data_tables(
         self,
         schema_graph: SchemaGraph,

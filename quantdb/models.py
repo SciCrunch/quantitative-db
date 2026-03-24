@@ -137,7 +137,10 @@ def _disambiguated_scalar_name(
         if fk_col != referred_name and fk_col != 'id':
             return f'{referred_name}_via_{fk_col}'
     return name_for_scalar_relationship(
-        base, local_cls, referred_cls, constraint,
+        base,
+        local_cls,
+        referred_cls,
+        constraint,
     )
 
 
@@ -167,7 +170,10 @@ def _disambiguated_collection_name(
         if fk_col != referred_name and fk_col != 'id':
             return f'{referred_name}_via_{fk_col}_collection'
     return name_for_collection_relationship(
-        base, local_cls, referred_cls, constraint,
+        base,
+        local_cls,
+        referred_cls,
+        constraint,
     )
 
 
@@ -193,14 +199,9 @@ def get_connection_kwargs(test: bool = True) -> dict[str, Any]:
 
     prefix = 'test-db' if test else 'db'
     try:
-        kwargs: dict[str, Any] = {
-            k: auth.get(f'{prefix}-{k}')
-            for k in ('user', 'host', 'port', 'database')
-        }
+        kwargs: dict[str, Any] = {k: auth.get(f'{prefix}-{k}') for k in ('user', 'host', 'port', 'database')}
     except Exception as e:
-        raise RuntimeError(
-            f'Failed to load orthauth config with prefix {prefix!r}: {e}'
-        ) from e
+        raise RuntimeError(f'Failed to load orthauth config with prefix {prefix!r}: {e}') from e
 
     kwargs['dbuser'] = kwargs.pop('user')
     return kwargs
@@ -361,10 +362,7 @@ def reflect_models(
     metadata.reflect(bind=engine)
 
     if not metadata.tables:
-        raise RuntimeError(
-            'No tables found in quantdb schema. '
-            'Is the database initialized?'
-        )
+        raise RuntimeError('No tables found in quantdb schema. ' 'Is the database initialized?')
 
     Base = automap_base(metadata=metadata)
 
@@ -376,10 +374,14 @@ def reflect_models(
         table_key = f'quantdb.{table_name}'
         if table_key in metadata.tables:
             class_name = _snake_to_camel(table_name)
-            cls = type(class_name, (Base,), {
-                '__tablename__': table_name,
-                '__table__': metadata.tables[table_key],
-            })
+            cls = type(
+                class_name,
+                (Base,),
+                {
+                    '__tablename__': table_name,
+                    '__table__': metadata.tables[table_key],
+                },
+            )
             _assoc[class_name] = cls
 
     Base.prepare(
@@ -425,6 +427,7 @@ def reflect_models(
 
     # Build the schema introspection graph
     from quantdb.generic_ingest import SchemaGraph
+
     schema_graph = SchemaGraph.from_reflected(result)
     return result._replace(schema_graph=schema_graph)
 
