@@ -123,17 +123,28 @@ class TestTopologicalSort:
 
     def test_no_table_before_its_dependencies(
         self,
+        reflected: ReflectedModels,
         schema_graph: SchemaGraph,
     ) -> None:
-        """No table appears before any of its FK dependencies."""
+        """No table appears before any of its FK dependencies.
+
+        Validates against ALL FK constraints from the reflected schema
+        (including composite FKs like values_quant's
+        ``(object, desc_inst) -> obj_desc_inst``), not just the
+        single-column entries in fk_map.
+        """
         order = schema_graph.topo_order
-        for name, info in schema_graph.tables.items():
-            for fk_col, fk_info in info.fk_map.items():
-                target = fk_info.target_table
+        for _full_name, table in reflected.Base.metadata.tables.items():
+            name = table.name
+            for fkc in table.foreign_key_constraints:
+                target = fkc.referred_table.name
                 # Skip circular deps (those edges are intentionally broken)
                 if frozenset([name, target]) in schema_graph.circular_deps:
                     continue
-                assert order.index(target) < order.index(name), f'{target} should come before {name} (via FK {fk_col})'
+                cols_str = ', '.join(sorted(fkc.column_keys))
+                assert order.index(target) < order.index(name), (
+                    f'{target} should come before {name} ' f'(via FK columns: {cols_str})'
+                )
 
     def test_topo_order_contains_all_tables(
         self,
@@ -209,11 +220,26 @@ class TestFKMap:
 
     def test_every_fk_col_has_entry(
         self,
+        reflected: ReflectedModels,
         schema_graph: SchemaGraph,
     ) -> None:
-        """Every single-column FK constraint produces an fk_map entry."""
-        for name, info in schema_graph.tables.items():
-            for col_name, fk_info in info.fk_map.items():
+        """Every single-column FK constraint's local column has an fk_map entry.
+
+        Compares SchemaGraph's fk_map against the reflected
+        Table.foreign_key_constraints for each table to ensure no
+        single-column FK column is missing from the map.
+        """
+        for _full_name, table in reflected.Base.metadata.tables.items():
+            name = table.name
+            info = schema_graph.tables[name]
+            for fkc in table.foreign_key_constraints:
+                if len(fkc.columns) != 1:
+                    continue  # composite FKs are not in fk_map by design
+                col_name = list(fkc.column_keys)[0]
+                assert col_name in info.fk_map, (
+                    f'{name}.{col_name} is a single-column FK in the ' f'reflected schema but missing from fk_map'
+                )
+                fk_info = info.fk_map[col_name]
                 assert fk_info.column == col_name
                 assert fk_info.target_table in schema_graph.tables, (
                     f'{name}.{col_name} points to unknown table ' f'{fk_info.target_table}'
