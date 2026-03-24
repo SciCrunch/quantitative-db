@@ -19,6 +19,7 @@
 - Trust auth (no passwords for localhost connections)
 - Test database: `quantdb_test` (20 tables in `quantdb` schema)
 - User: `quantdb-test-user` (SELECT, INSERT privileges)
+- Committed cleanup for write-based tests may require a second localhost connection with a higher-privilege local role; `quantdb-test-user` cannot delete committed rows from tables like `objects`
 - Search path: `quantdb, public` (set via event listener in models.py)
 
 ## Auth Config
