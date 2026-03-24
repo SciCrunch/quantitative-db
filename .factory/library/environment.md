@@ -26,8 +26,10 @@
 - orthauth config at `~/.config/quantdb/config.yaml`
 - `test-db-*` keys point to localhost quantdb_test
 - `db-*` keys commented out (production requires explicit env vars)
+- Because orthauth resolution can still be overridden to AWS, tests that reflect models should construct an explicit localhost engine and call `reflect_models(engine=engine)` rather than relying on the no-arg default.
 
 ## CRITICAL CONSTRAINT
 
 - **NO AWS/external network calls.** All tests must use localhost:5432 only.
 - Never connect to `*.amazonaws.com` or `cassava.ucsd.edu` from test code.
+- As of 2026-03-24, the full suite command `pytest test/ -v --no-header -x` fails immediately in `test/test_api.py` because the Flask API path still opens a SQLAlchemy connection to `sparc-nlp.cpmk2alqjf9s.us-west-2.rds.amazonaws.com` instead of localhost, which raises `psycopg2.OperationalError: fe_sendauth: no password supplied`.
