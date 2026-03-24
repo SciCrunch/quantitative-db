@@ -12,7 +12,9 @@ Requires:
 """
 from __future__ import annotations
 
+import subprocess
 import uuid
+from pathlib import Path
 from typing import Any, Generator
 
 import pytest
@@ -1676,3 +1678,266 @@ class TestEndToEndReflectInsertVerify:
         assert float(row.value) == 123.456
         assert row.object == obj.id
         assert row.desc_quant == dq.id
+
+
+# ===========================================================================
+# Integration validation tests
+# ===========================================================================
+
+
+# ---------------------------------------------------------------------------
+# VAL-CROSS-002: No external network calls in new test files
+# ---------------------------------------------------------------------------
+
+
+class TestNoExternalURLs:
+    """Verify new test files contain no external endpoint references.
+
+    Scoped to ``test_deep_upsert.py`` and ``test_generic_ingest.py`` per
+    AGENTS.md guidance.  Pre-existing ``test_ingest_f006.py`` is
+    excluded (it intentionally caches external metadata).
+    """
+
+    def test_rg_no_external_urls_in_new_test_files(self) -> None:
+        """VAL-CROSS-002: rg scan of new test files finds zero external URLs.
+
+        Constructs the forbidden patterns dynamically so that this
+        source file itself does not contain the literal strings and
+        therefore passes the same ``rg`` check.
+        """
+        test_dir = Path(__file__).parent
+        target_files = [
+            str(test_dir / 'test_deep_upsert.py'),
+            str(test_dir / 'test_generic_ingest.py'),
+        ]
+        # Build patterns char-by-char to avoid the literal strings
+        # appearing in this source file (which rg would match).
+        aws_pat = ''.join(['a', 'm', 'a', 'z', 'o', 'n', 'a', 'w', 's'])
+        cassava_pat = ''.join(['c', 'a', 's', 's', 'a', 'v', 'a', '.', 'u', 'c', 's', 'd'])
+        result = subprocess.run(
+            ['rg', f'{aws_pat}|{cassava_pat}'] + target_files,
+            capture_output=True,
+            text=True,
+        )
+        # rg exit code: 0 = matches, 1 = no matches, 2 = error
+        assert result.returncode != 0, f'External URLs found in test files:\n{result.stdout}'
+
+
+# ---------------------------------------------------------------------------
+# Integration validation: Idempotency for values_quant via Ingest
+# ---------------------------------------------------------------------------
+
+
+class TestIdempotencyValuesQuant:
+    """Insert same values_quant row twice, verify same PK returned."""
+
+    def test_same_values_quant_twice_returns_same_pk(
+        self,
+        session: Session,
+        reflected: ReflectedModels,
+        schema: SchemaGraph,
+        ingest: Ingest,
+    ) -> None:
+        """Idempotency: same data → same PK → no duplicate row.
+
+        Inserts the same ``values_quant`` row twice via ``Ingest.row()``
+        and asserts both calls return an instance with the identical
+        primary key.
+        """
+        obj = _fresh_object(session, reflected)
+        if obj is None:
+            pytest.skip('No non-dataset object without obj_desc_inst')
+
+        VI = reflected.ValuesInst
+        DI = reflected.DescriptorsInst
+        vi = session.execute(select(VI).limit(1)).scalar_one()
+        di = session.execute(
+            select(DI).where(DI.id == vi.desc_inst),
+        ).scalar_one()
+
+        DQ = reflected.DescriptorsQuant
+        dq = session.execute(
+            select(DQ).where(DQ.domain.is_(None)).limit(1),
+        ).scalar_one()
+
+        kwargs: dict[str, Any] = {
+            'value': 42.0,
+            'value_blob': 42.0,
+            'object': obj.id,
+            'desc_inst': di.label,
+            'desc_quant': dq.label,
+            'instance': {
+                'dataset': str(vi.dataset),
+                'id_formal': vi.id_formal,
+            },
+        }
+
+        result1 = ingest.row(session, 'values_quant', **kwargs)
+        result2 = ingest.row(session, 'values_quant', **kwargs)
+
+        assert result1.id == result2.id, f'Second insert should return same PK: ' f'{result1.id} != {result2.id}'
+
+
+# ---------------------------------------------------------------------------
+# Integration validation: Batch 100+ rows
+# ---------------------------------------------------------------------------
+
+
+class TestBatch100PlusRows:
+    """Insert 100+ rows in one ``Ingest.batch()`` call, verify count."""
+
+    def test_batch_100_values_quant(
+        self,
+        session: Session,
+        reflected: ReflectedModels,
+        schema: SchemaGraph,
+        ingest: Ingest,
+    ) -> None:
+        """Batch of 100+ values_quant rows completes without errors.
+
+        Uses 100 distinct ``values_inst`` rows (all with the same
+        ``desc_inst``) to produce 100 unique
+        ``(object, instance, desc_quant)`` combinations.
+        """
+        obj = _fresh_object(session, reflected)
+        if obj is None:
+            pytest.skip('No non-dataset object without obj_desc_inst')
+
+        DI = reflected.DescriptorsInst
+        VI = reflected.ValuesInst
+        DQ = reflected.DescriptorsQuant
+
+        # Pick a desc_inst with many values_inst rows
+        di = session.execute(
+            select(DI).where(DI.label == 'fiber-cross-section'),
+        ).scalar_one_or_none()
+        if di is None:
+            pytest.skip('fiber-cross-section desc_inst not found')
+
+        # Fetch 110 values_inst rows with that desc_inst
+        vis = (
+            session.execute(
+                select(VI).where(VI.desc_inst == di.id).limit(110),
+            )
+            .scalars()
+            .all()
+        )
+        if len(vis) < 100:
+            pytest.skip(
+                f'Not enough values_inst rows with ' f'desc_inst={di.label} (found {len(vis)})',
+            )
+
+        # Find a compatible desc_quant (domain matches or is NULL)
+        dq = session.execute(
+            select(DQ).where((DQ.domain == di.id) | DQ.domain.is_(None)).limit(1),
+        ).scalar_one()
+
+        rows = [
+            {
+                'value': float(i),
+                'value_blob': float(i),
+                'object': obj.id,
+                'desc_inst': di.id,
+                'desc_quant': dq.id,
+                'instance': vi.id,
+            }
+            for i, vi in enumerate(vis[:100])
+        ]
+        assert len(rows) == 100
+
+        results = ingest.batch(session, 'values_quant', rows)
+        assert len(results) == 100, f'Expected 100 results, got {len(results)}'
+        # Every row references the correct object
+        for r in results:
+            assert r.object == obj.id
+
+
+# ---------------------------------------------------------------------------
+# Integration validation: Cross-table consistency via raw SQL
+# ---------------------------------------------------------------------------
+
+
+class TestCrossTableConsistency:
+    """After inserting values_quant, verify prerequisite rows were
+    auto-created using raw SQL SELECT on quantdb_test.
+    """
+
+    def test_prerequisites_auto_created_verified_by_raw_sql(
+        self,
+        session: Session,
+        reflected: ReflectedModels,
+        schema: SchemaGraph,
+        ingest: Ingest,
+    ) -> None:
+        """Cross-table consistency: obj_desc_inst + obj_desc_quant
+        auto-created and verifiable via raw SQL SELECT.
+
+        1. Find a fresh object with zero prerequisite rows.
+        2. Insert ``values_quant`` via ``Ingest.row()``.
+        3. Verify ``obj_desc_inst`` row exists (raw SQL).
+        4. Verify ``obj_desc_quant`` row exists (raw SQL).
+        """
+        obj = _fresh_object(session, reflected)
+        if obj is None:
+            pytest.skip('No non-dataset object without obj_desc_inst')
+
+        # 1. Confirm zero prerequisite rows via raw SQL
+        odi_before = session.execute(
+            text('SELECT count(*) FROM quantdb.obj_desc_inst ' 'WHERE object = :oid'),
+            {'oid': str(obj.id)},
+        ).scalar_one()
+        assert odi_before == 0
+
+        odq_before = session.execute(
+            text('SELECT count(*) FROM quantdb.obj_desc_quant ' 'WHERE object = :oid'),
+            {'oid': str(obj.id)},
+        ).scalar_one()
+        assert odq_before == 0
+
+        # 2. Insert values_quant via Ingest
+        VI = reflected.ValuesInst
+        DI = reflected.DescriptorsInst
+        vi = session.execute(select(VI).limit(1)).scalar_one()
+        di = session.execute(
+            select(DI).where(DI.id == vi.desc_inst),
+        ).scalar_one()
+
+        DQ = reflected.DescriptorsQuant
+        dq = session.execute(
+            select(DQ).where(DQ.domain.is_(None)).limit(1),
+        ).scalar_one()
+
+        result = ingest.row(
+            session,
+            'values_quant',
+            value=77.7,
+            value_blob=77.7,
+            object=obj.id,
+            desc_inst=di.label,
+            desc_quant=dq.label,
+            instance={
+                'dataset': str(vi.dataset),
+                'id_formal': vi.id_formal,
+            },
+        )
+        assert result is not None
+
+        # 3. Verify obj_desc_inst auto-created via raw SQL
+        odi_rows = session.execute(
+            text('SELECT object, desc_inst, addr_field ' 'FROM quantdb.obj_desc_inst ' 'WHERE object = :oid'),
+            {'oid': str(obj.id)},
+        ).fetchall()
+        assert len(odi_rows) >= 1, 'obj_desc_inst should have been auto-created ' f'for object {obj.id}'
+
+        # 4. Verify obj_desc_quant auto-created via raw SQL
+        odq_rows = session.execute(
+            text(
+                'SELECT object, desc_quant, addr_field '
+                'FROM quantdb.obj_desc_quant '
+                'WHERE object = :oid AND desc_quant = :dqid'
+            ),
+            {'oid': str(obj.id), 'dqid': dq.id},
+        ).fetchall()
+        assert len(odq_rows) >= 1, (
+            'obj_desc_quant should have been auto-created ' f'for object {obj.id}, desc_quant {dq.id}'
+        )
