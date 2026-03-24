@@ -1553,6 +1553,71 @@ class TestIngestRowLookupTableGuard:
 
 
 # ---------------------------------------------------------------------------
+# Regression: Ingest.batch() must block direct inserts into lookup tables
+# ---------------------------------------------------------------------------
+
+
+class TestIngestBatchLookupTableGuard:
+    """Regression: Ingest.batch() raises LookupTableError for lookup tables.
+
+    The same is_lookup guard present in Ingest.row() must also exist
+    in Ingest.batch() to prevent bypassing lookup table protection
+    via the batch interface.
+    """
+
+    def test_batch_into_units_raises_lookup_table_error(
+        self,
+        session: Session,
+        ingest: Ingest,
+    ) -> None:
+        """Ingest.batch(s, 'units', [...]) → LookupTableError.
+
+        units is a pre-populated lookup table.  Direct inserts via
+        Ingest.batch() must be blocked before iterating into deep_upsert.
+        """
+        with pytest.raises(LookupTableError, match='units'):
+            ingest.batch(session, 'units', [{'label': 'x', 'iri': 'y'}])
+
+    def test_batch_into_aspects_raises_lookup_table_error(
+        self,
+        session: Session,
+        ingest: Ingest,
+    ) -> None:
+        """Ingest.batch(s, 'aspects', [...]) → LookupTableError."""
+        with pytest.raises(LookupTableError, match='aspects'):
+            ingest.batch(session, 'aspects', [{'label': 'x', 'iri': 'y'}])
+
+    def test_batch_into_descriptors_inst_raises_lookup_table_error(
+        self,
+        session: Session,
+        ingest: Ingest,
+    ) -> None:
+        """Ingest.batch(s, 'descriptors_inst', [...]) → LookupTableError."""
+        with pytest.raises(LookupTableError, match='descriptors_inst'):
+            ingest.batch(
+                session,
+                'descriptors_inst',
+                [{'label': 'x', 'iri': 'y'}],
+            )
+
+    def test_batch_into_non_lookup_table_allowed(
+        self,
+        session: Session,
+        reflected: ReflectedModels,
+        ingest: Ingest,
+    ) -> None:
+        """Ingest.batch(s, 'objects', [...]) succeeds (not a lookup table)."""
+        test_uuid = uuid.uuid4()
+        results = ingest.batch(
+            session,
+            'objects',
+            [{'id': test_uuid, 'id_type': 'collection'}],
+        )
+        assert len(results) == 1
+        assert results[0].id == test_uuid
+
+
+# ---------------------------------------------------------------------------
 # VAL-CROSS-001: End-to-end reflect-to-insert-to-verify
 # ---------------------------------------------------------------------------
 

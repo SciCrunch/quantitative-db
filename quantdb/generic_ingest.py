@@ -1257,6 +1257,14 @@ class Ingest:
             10
         """
         model = self._get_model(table_name)
+        # Guard: block direct inserts into lookup tables
+        table_info = self.schema.tables.get(table_name)
+        if table_info is not None and table_info.is_lookup:
+            raise LookupTableError(
+                f"Cannot insert directly into lookup table '{table_name}'. "
+                f'Lookup tables are pre-populated and must not be modified '
+                f'via Ingest.batch().',
+            )
         cache: FKCache = {}
         results: list[Any] = []
         for row_data in rows:
