@@ -1,7 +1,7 @@
 {
   "milestone": "deep-upsert",
-  "round": 2,
-  "status": "fail",
+  "round": 3,
+  "status": "pass",
   "validatorsRun": {
     "test": {
       "passed": true,
@@ -15,32 +15,25 @@
     },
     "lint": {
       "passed": true,
-      "command": "cd \"/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db\" && /Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pytest test/ --co -q --no-header 2>&1 && echo \"lint check - no flake8/ruff configured\"",
+      "command": "cd \"/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db\" && /Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pytest test/ --co -q --no-header && echo \"lint check - no flake8/ruff configured\"",
       "exitCode": 0
     }
   },
   "reviewsSummary": {
     "total": 1,
-    "passed": 0,
-    "failed": 1,
-    "failedFeatures": [
-      "fix-deep-upsert-trigger-ordering"
-    ]
+    "passed": 1,
+    "failed": 0,
+    "failedFeatures": []
   },
-  "blockingIssues": [
+  "blockingIssues": [],
+  "appliedUpdates": [
     {
-      "featureId": "fix-deep-upsert-trigger-ordering",
-      "severity": "blocking",
-      "description": "_ensure_obj_desc_inst() still returns after finding any obj_desc_inst row for the object instead of ensuring the required (object, desc_inst) pair exists, so deep_upsert(values_quant/values_cat, ...) can still violate the composite FK when the object already has a different descriptor mapping."
-    },
-    {
-      "featureId": "fix-deep-upsert-trigger-ordering",
-      "severity": "blocking",
-      "description": "The new trigger-ordering tests only cover objects with no obj_desc_inst rows at all and do not exercise the remaining broken case where an object already has a different obj_desc_inst row, leaving the blocking gap unverified."
+      "target": "library",
+      "description": "Documented the values_quant/values_cat trigger preconditions in `.factory/library/architecture.md` so future workers know that inserted value rows must use a values_inst row with the same desc_inst and a descriptor whose domain is NULL, equal, or an ancestor.",
+      "sourceFeature": "fix-obj-desc-inst-specific-pair"
     }
   ],
-  "appliedUpdates": [],
   "suggestedGuidanceUpdates": [],
   "rejectedObservations": [],
-  "previousRound": ".factory/validation/deep-upsert/scrutiny/synthesis.round-1.json"
+  "previousRound": ".factory/validation/deep-upsert/scrutiny/synthesis.round-2.json"
 }

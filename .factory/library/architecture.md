@@ -43,6 +43,14 @@ A `dict` cache keyed by `(table_name, frozenset(natural_key_values))` prevents r
 - All integer serial PKs resolvable by natural key lookup
 - Only objects.id requires user-supplied UUID (Pennsieve ID)
 
+## Trigger Constraints for Value Inserts
+
+- `values_quant` inserts must satisfy `values_quant_check_before()`:
+  - `NEW.instance` must point at a `values_inst` row whose `desc_inst` exactly matches `NEW.desc_inst`
+  - the chosen `descriptors_quant.domain` must be `NULL`, equal to `NEW.desc_inst`, or an ancestor of `NEW.desc_inst` through `get_parent_desc_inst(...)`
+- `values_cat` inserts must satisfy the analogous `values_cat_check_before()` rules against `descriptors_cat.domain`
+- Integration tests that insert `values_quant`/`values_cat` directly should therefore pick compatible `values_inst` + descriptor combinations (or intentionally assert the trigger error)
+
 ## Existing Patterns to Follow
 
 - `models.py` uses `_snake_to_camel()` for table→class name mapping

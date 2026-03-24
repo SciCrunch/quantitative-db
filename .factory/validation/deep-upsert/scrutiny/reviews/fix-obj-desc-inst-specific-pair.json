@@ -1,0 +1,21 @@
+{
+  "featureId": "fix-obj-desc-inst-specific-pair",
+  "reviewedAt": "2026-03-24T21:15:31Z",
+  "commitId": "10db2cd8f87516c45db19ffe3bad9a6feb39f83a",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "This rerun fix adequately addresses the prior blocking issue from fix-deep-upsert-trigger-ordering. In quantdb/generic_ingest.py, _ensure_obj_desc_inst now checks for the exact (object, desc_inst) pair before returning, which matches the composite FK requirement on values_quant/values_cat. The new regression test in test/test_deep_upsert.py exercises the previously broken scenario by pre-creating an unrelated obj_desc_inst row and then deep_upserting a values_quant row for a different desc_inst, verifying that the second obj_desc_inst pair and corresponding obj_desc_quant row are auto-created. I found no remaining in-scope correctness issues in this fix.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "knowledge",
+      "observation": "The mission shared state does not currently document the values_quant trigger constraints that integration tests must satisfy, so the worker had to rediscover them while debugging the regression test.",
+      "evidence": "worker-transcripts.jsonl for session 74c3756d-3068-42d4-b10b-1eaf20d665c5 shows the first regression-test attempt failed on values_quant_check_before, after which the worker inspected sql/tables.sql:594-603 and ran ad hoc psql queries to find a values_inst row with matching desc_inst and a descriptors_quant row whose domain was NULL or the same desc_inst. Neither /Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/.factory/library/architecture.md nor AGENTS.md currently captures those trigger-specific test requirements."
+    }
+  ],
+  "addressesFailureFrom": "/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/.factory/validation/deep-upsert/scrutiny/reviews/fix-deep-upsert-trigger-ordering.json",
+  "summary": "Pass: this fix closes the remaining blocking gap from fix-deep-upsert-trigger-ordering by ensuring _ensure_obj_desc_inst matches the specific (object, desc_inst) pair and by adding a regression test for the previously broken case with an existing unrelated obj_desc_inst row."
+}
