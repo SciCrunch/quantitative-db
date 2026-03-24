@@ -61,7 +61,7 @@ None.
 1. Run the full test suite: `/Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pytest test/ -v --no-header -x --ignore=test/test_api.py`
 2. Ensure no regressions in existing tests
 3. Check for import errors on the symbols YOUR feature created (not future features)
-4. Verify no external URLs in test code: `rg 'amazonaws|cassava\.ucsd' test/`
+4. Verify no external URLs in YOUR test files (not all of test/ — test/test_ingest_f006.py intentionally contains cached cassava references): `rg 'amazonaws|cassava\.ucsd' test/test_deep_upsert.py test/test_generic_ingest.py`
 5. Run pre-commit formatters on changed files: `cd "/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db" && pre-commit run --files <your_files>` and commit any fixes
 
 ### Step 6: Commit
