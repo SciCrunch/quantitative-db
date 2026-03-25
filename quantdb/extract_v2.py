@@ -59,6 +59,7 @@ def _translate_site_type(v):
 # Topological sort helper
 # ---------------------------------------------------------------------------
 
+
 def _topo_sort_samples(raw_samples, parents_list):
     """Return *raw_samples* reordered so that parent samples appear first.
 
@@ -106,6 +107,7 @@ def _topo_sort_samples(raw_samples, parents_list):
 # Main extraction
 # ---------------------------------------------------------------------------
 
+
 def extract_entities_v2(curation_export, dataset_uuid):
     """Extract entity metadata from a single dataset's curation-export.json.
 
@@ -129,10 +131,7 @@ def extract_entities_v2(curation_export, dataset_uuid):
     parents = []  # list of {'child': id_formal, 'parent': id_formal}
 
     # Build sample_id → subject_id lookup for site subject resolution
-    sample_subject = {
-        s['sample_id']: s['subject_id']
-        for s in curation_export.get('samples', [])
-    }
+    sample_subject = {s['sample_id']: s['subject_id'] for s in curation_export.get('samples', [])}
 
     # -------------------------------------------------------------------
     # Subjects
@@ -141,13 +140,15 @@ def extract_entities_v2(curation_export, dataset_uuid):
         species = ent.get('species')
         desc_inst = _translate_species(species) if species else None
 
-        subjects.append({
-            'dataset': dataset_uuid,
-            'id_formal': ent['subject_id'],
-            'type': 'subject',
-            'desc_inst': desc_inst,
-            'id_sub': ent['subject_id'],
-        })
+        subjects.append(
+            {
+                'dataset': dataset_uuid,
+                'id_formal': ent['subject_id'],
+                'type': 'subject',
+                'desc_inst': desc_inst,
+                'id_sub': ent['subject_id'],
+            }
+        )
 
     # -------------------------------------------------------------------
     # Samples
@@ -177,14 +178,16 @@ def extract_entities_v2(curation_export, dataset_uuid):
         sample_type = ent.get('sample_type')
         desc_inst = _translate_sample_type(sample_type) if sample_type else None
 
-        raw_samples.append({
-            'dataset': dataset_uuid,
-            'id_formal': sample_id,
-            'type': 'sample',
-            'desc_inst': desc_inst,
-            'id_sub': ent['subject_id'],
-            'id_sam': sample_id,
-        })
+        raw_samples.append(
+            {
+                'dataset': dataset_uuid,
+                'id_formal': sample_id,
+                'type': 'sample',
+                'desc_inst': desc_inst,
+                'id_sub': ent['subject_id'],
+                'id_sam': sample_id,
+            }
+        )
 
     # Topologically sort samples so parents appear before children
     samples = _topo_sort_samples(raw_samples, sample_parent_edges)
@@ -276,6 +279,7 @@ _FIBER_CAT_COLUMN = 'myelinated'
 # Path-metadata parsing helpers
 # ---------------------------------------------------------------------------
 
+
 def _parse_csv_path(dataset_relative_path, curation_export):
     """Parse a CSV file's dataset-relative path to extract context.
 
@@ -295,8 +299,7 @@ def _parse_csv_path(dataset_relative_path, curation_export):
         _top, subject, _sam_1, segment, modality, _file = parts
         if segment.startswith('site-'):
             site = segment
-            site_meta = [s for s in curation_export.get('sites', [])
-                         if s['site_id'] == site]
+            site_meta = [s for s in curation_export.get('sites', []) if s['site_id'] == site]
             if site_meta:
                 site_type = _translate_site_type(site_meta[0]['site_type'])
                 segment = site_meta[0]['specimen_id']
@@ -307,8 +310,7 @@ def _parse_csv_path(dataset_relative_path, curation_export):
         _top, subject, _sam_1, segment, _file = parts
         if segment.startswith('site-'):
             site = segment
-            site_meta = [s for s in curation_export.get('sites', [])
-                         if s['site_id'] == site]
+            site_meta = [s for s in curation_export.get('sites', []) if s['site_id'] == site]
             if site_meta:
                 site_type = _translate_site_type(site_meta[0]['site_type'])
                 segment = site_meta[0]['specimen_id']
@@ -348,6 +350,7 @@ def _extract_file_id(entry):
 # JPX / microCT file extraction
 # ---------------------------------------------------------------------------
 
+
 def extract_reva_ft_v2(path_metadata):
     """Extract JPX/microCT file objects from path-metadata.json.
 
@@ -370,11 +373,13 @@ def extract_reva_ft_v2(path_metadata):
         uuid = _extract_uuid(entry.get('remote_id', ''))
         file_id = _extract_file_id(entry)
 
-        objects.append({
-            'uuid': uuid,
-            'file_id': file_id,
-            'id_type': 'package',
-        })
+        objects.append(
+            {
+                'uuid': uuid,
+                'file_id': file_id,
+                'id_type': 'package',
+            }
+        )
 
     return {'objects': objects}
 
@@ -382,6 +387,7 @@ def extract_reva_ft_v2(path_metadata):
 # ---------------------------------------------------------------------------
 # Fascicle / Fiber CSV extraction
 # ---------------------------------------------------------------------------
+
 
 def _find_csv_entries(path_metadata):
     """Find all CSV file entries in path-metadata by mimetype or basename."""
@@ -433,11 +439,10 @@ def extract_fasc_fib_v2(curation_export, path_metadata, dataset_uuid, csv_fetche
     """
     csv_entries = _find_csv_entries(path_metadata)
 
-    fasc_entries = [e for e in csv_entries
-                    if e.get('basename', '').endswith('fascicles.csv')]
-    fib_entries = [e for e in csv_entries
-                   if e.get('basename', '').endswith('fibers.csv')
-                   and not _is_fasc_subfolder_fiber(e)]
+    fasc_entries = [e for e in csv_entries if e.get('basename', '').endswith('fascicles.csv')]
+    fib_entries = [
+        e for e in csv_entries if e.get('basename', '').endswith('fibers.csv') and not _is_fasc_subfolder_fiber(e)
+    ]
 
     fascicles = []
     fibers = []
@@ -450,10 +455,7 @@ def extract_fasc_fib_v2(curation_export, path_metadata, dataset_uuid, csv_fetche
     fasc_fib_id = defaultdict(int)
 
     # Build sample_subject lookup from curation_export
-    sample_subject = {
-        s['sample_id']: s['subject_id']
-        for s in curation_export.get('samples', [])
-    }
+    sample_subject = {s['sample_id']: s['subject_id'] for s in curation_export.get('samples', [])}
 
     # Collect fascicle remote_ids for later fiber classification
     fasc_remote_ids = set()
@@ -471,8 +473,7 @@ def extract_fasc_fib_v2(curation_export, path_metadata, dataset_uuid, csv_fetche
     # Process fascicle CSV files
     # ------------------------------------------------------------------
     for entry in fasc_entries:
-        ctx = _parse_csv_path(
-            entry.get('dataset_relative_path', ''), curation_export)
+        ctx = _parse_csv_path(entry.get('dataset_relative_path', ''), curation_export)
         if ctx is None:
             continue
 
@@ -501,14 +502,16 @@ def extract_fasc_fib_v2(curation_export, path_metadata, dataset_uuid, csv_fetche
             fascicle_id = record[idx_inst]
             id_formal = 'fasc-' + fbase + '-' + str(fascicle_id)
 
-            fascicles.append({
-                'dataset': dataset_uuid,
-                'id_formal': id_formal,
-                'type': 'below',
-                'desc_inst': 'fascicle-cross-section',
-                'id_sub': id_sub,
-                'id_sam': id_sam,
-            })
+            fascicles.append(
+                {
+                    'dataset': dataset_uuid,
+                    'id_formal': id_formal,
+                    'type': 'below',
+                    'desc_inst': 'fascicle-cross-section',
+                    'id_sub': id_sub,
+                    'id_sam': id_sam,
+                }
+            )
 
             # Parent: fascicle -> site/sample
             parents.append({'child': id_formal, 'parent': fbase})
@@ -518,24 +521,25 @@ def extract_fasc_fib_v2(curation_export, path_metadata, dataset_uuid, csv_fetche
                 if col_name in header:
                     idx_v = header.index(col_name)
                     value = record[idx_v]
-                    quant_values.append({
-                        'value': value,
-                        'value_blob': value,
-                        'object': obj_uuid,
-                        'desc_inst': 'fascicle-cross-section',
-                        'desc_quant': col_name,
-                        'instance': {
-                            'dataset': dataset_uuid,
-                            'id_formal': id_formal,
-                        },
-                    })
+                    quant_values.append(
+                        {
+                            'value': value,
+                            'value_blob': value,
+                            'object': obj_uuid,
+                            'desc_inst': 'fascicle-cross-section',
+                            'desc_quant': col_name,
+                            'instance': {
+                                'dataset': dataset_uuid,
+                                'id_formal': id_formal,
+                            },
+                        }
+                    )
 
     # ------------------------------------------------------------------
     # Process fiber CSV files
     # ------------------------------------------------------------------
     for entry in fib_entries:
-        ctx = _parse_csv_path(
-            entry.get('dataset_relative_path', ''), curation_export)
+        ctx = _parse_csv_path(entry.get('dataset_relative_path', ''), curation_export)
         if ctx is None:
             continue
 
@@ -562,28 +566,28 @@ def extract_fasc_fib_v2(curation_export, path_metadata, dataset_uuid, csv_fetche
                 _idx_inst = header.index('fascicle')
                 _id_inst = record[_idx_inst]
                 _fasc_id = str(_id_inst)
-                _fbase = (ctx['site'] if ctx['site'] is not None
-                          else ctx['sample'])
+                _fbase = ctx['site'] if ctx['site'] is not None else ctx['sample']
                 fbase = 'fasc-' + _fbase + '-' + _fasc_id
                 fasc_fib_id[(dataset_uuid, fbase)] += 1
                 id_inst = fasc_fib_id[(dataset_uuid, fbase)]
             else:
                 id_inst = i + 1
-                fbase = (ctx['site'] if ctx['site'] is not None
-                         else ctx['sample'])
+                fbase = ctx['site'] if ctx['site'] is not None else ctx['sample']
                 if fasc_id_from_path is not None:
                     fbase = 'fasc-' + fbase + '-' + fasc_id_from_path
 
             id_formal = 'fiber-' + fbase + '-' + str(id_inst)
 
-            fibers.append({
-                'dataset': dataset_uuid,
-                'id_formal': id_formal,
-                'type': 'below',
-                'desc_inst': 'fiber-cross-section',
-                'id_sub': id_sub,
-                'id_sam': id_sam,
-            })
+            fibers.append(
+                {
+                    'dataset': dataset_uuid,
+                    'id_formal': id_formal,
+                    'type': 'below',
+                    'desc_inst': 'fiber-cross-section',
+                    'id_sub': id_sub,
+                    'id_sam': id_sam,
+                }
+            )
 
             # Parent: fiber -> fascicle (or site/sample)
             parents.append({'child': id_formal, 'parent': fbase})
@@ -593,34 +597,37 @@ def extract_fasc_fib_v2(curation_export, path_metadata, dataset_uuid, csv_fetche
                 if col_name in header:
                     idx_v = header.index(col_name)
                     value = record[idx_v]
-                    quant_values.append({
-                        'value': value,
-                        'value_blob': value,
-                        'object': obj_uuid,
-                        'desc_inst': 'fiber-cross-section',
-                        'desc_quant': col_name,
-                        'instance': {
-                            'dataset': dataset_uuid,
-                            'id_formal': id_formal,
-                        },
-                    })
+                    quant_values.append(
+                        {
+                            'value': value,
+                            'value_blob': value,
+                            'object': obj_uuid,
+                            'desc_inst': 'fiber-cross-section',
+                            'desc_quant': col_name,
+                            'instance': {
+                                'dataset': dataset_uuid,
+                                'id_formal': id_formal,
+                            },
+                        }
+                    )
 
             # Categorical value: myelinated
             if _FIBER_CAT_COLUMN in header:
                 idx_v = header.index(_FIBER_CAT_COLUMN)
                 raw = record[idx_v]
-                value = ('myelinated' if str(raw).lower() == 'true'
-                         else 'unmyelinated')
-                cat_values.append({
-                    'value': value,
-                    'object': obj_uuid,
-                    'desc_inst': 'fiber-cross-section',
-                    'desc_cat': _FIBER_CAT_COLUMN,
-                    'instance': {
-                        'dataset': dataset_uuid,
-                        'id_formal': id_formal,
-                    },
-                })
+                value = 'myelinated' if str(raw).lower() == 'true' else 'unmyelinated'
+                cat_values.append(
+                    {
+                        'value': value,
+                        'object': obj_uuid,
+                        'desc_inst': 'fiber-cross-section',
+                        'desc_cat': _FIBER_CAT_COLUMN,
+                        'instance': {
+                            'dataset': dataset_uuid,
+                            'id_formal': id_formal,
+                        },
+                    }
+                )
 
     return {
         'fascicles': fascicles,

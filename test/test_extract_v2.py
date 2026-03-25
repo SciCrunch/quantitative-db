@@ -76,7 +76,12 @@ class TestOutputStructure:
     """Verify the returned dict has the correct top-level keys and types."""
 
     def test_top_level_keys(self, extracted):
-        assert set(extracted.keys()) == {'subjects', 'samples', 'sites', 'parents'}
+        assert set(extracted.keys()) == {
+            'subjects',
+            'samples',
+            'sites',
+            'parents',
+        }
 
     def test_subjects_is_list(self, extracted):
         assert isinstance(extracted['subjects'], list)
@@ -228,17 +233,14 @@ class TestParentRelationships:
         segment_ids = {
             s['id_formal']
             for s in extracted['samples']
-            if s['desc_inst'] == 'nerve-volume' and not any(
-                p['parent'] in nerve_ids
-                for p in extracted['parents']
-                if p['child'] == s['id_formal']
-            ) is False
+            if s['desc_inst'] == 'nerve-volume'
+            and not any(p['parent'] in nerve_ids for p in extracted['parents'] if p['child'] == s['id_formal']) is False
         }
         # Simpler check: segments derived from nerve samples
         segment_parents = [
-            p for p in extracted['parents']
-            if p['child'].startswith('sam-') and p['child'].count('-') == 3
-            and p['parent'] in nerve_ids
+            p
+            for p in extracted['parents']
+            if p['child'].startswith('sam-') and p['child'].count('-') == 3 and p['parent'] in nerve_ids
         ]
         assert len(segment_parents) > 0
 
@@ -295,10 +297,7 @@ class TestTopologicalOrder:
         sample_set = set(sample_ids)
         id_to_index = {sid: i for i, sid in enumerate(sample_ids)}
 
-        sample_parents = [
-            p for p in extracted['parents']
-            if p['child'] in sample_set and p['parent'] in sample_set
-        ]
+        sample_parents = [p for p in extracted['parents'] if p['child'] in sample_set and p['parent'] in sample_set]
         for p in sample_parents:
             assert id_to_index[p['parent']] < id_to_index[p['child']], (
                 f"Parent {p['parent']} (idx {id_to_index[p['parent']]}) "
@@ -368,10 +367,15 @@ class TestRevaFtExtraction:
 
     def test_no_jpx_entries(self):
         """extract_reva_ft_v2 returns empty when no JPX mimetype."""
-        pm = {'data': [
-            {'mimetype': 'text/csv', 'remote_id': 'package:abc',
-             'uri_api': 'https://x/files/1'},
-        ]}
+        pm = {
+            'data': [
+                {
+                    'mimetype': 'text/csv',
+                    'remote_id': 'package:abc',
+                    'uri_api': 'https://x/files/1',
+                },
+            ]
+        }
         result = extract_reva_ft_v2(pm)
         assert result['objects'] == []
 
@@ -384,27 +388,50 @@ class TestRevaFtExtraction:
 # Mock CSV data helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_mock_fasc_csv(n_fascicles=3):
     """Build mock fascicles.csv rows (header + data)."""
-    header = ['fascicle', 'area', 'longest_diameter', 'shortest_diameter',
-              'eff_diam']
+    header = [
+        'fascicle',
+        'area',
+        'longest_diameter',
+        'shortest_diameter',
+        'eff_diam',
+    ]
     rows = [header]
     for i in range(1, n_fascicles + 1):
-        rows.append([str(i), str(100.0 + i), str(20.0 + i),
-                      str(10.0 + i), str(15.0 + i)])
+        rows.append(
+            [
+                str(i),
+                str(100.0 + i),
+                str(20.0 + i),
+                str(10.0 + i),
+                str(15.0 + i),
+            ]
+        )
     return rows
 
 
 def _make_mock_fiber_csv(n_fibers=5, include_fascicle=True):
     """Build mock fibers.csv rows (header + data)."""
-    header = ['fiber_area', 'longest_diameter', 'shortest_diameter',
-              'eff_fib_diam', 'myelinated']
+    header = [
+        'fiber_area',
+        'longest_diameter',
+        'shortest_diameter',
+        'eff_fib_diam',
+        'myelinated',
+    ]
     if include_fascicle:
         header = ['fascicle'] + header
     rows = [header]
     for i in range(1, n_fibers + 1):
-        row = [str(50.0 + i), str(8.0 + i), str(4.0 + i),
-               str(6.0 + i), 'TRUE' if i % 2 == 0 else 'FALSE']
+        row = [
+            str(50.0 + i),
+            str(8.0 + i),
+            str(4.0 + i),
+            str(6.0 + i),
+            'TRUE' if i % 2 == 0 else 'FALSE',
+        ]
         if include_fascicle:
             row = [str((i - 1) // 2 + 1)] + row  # 2-3 fibers per fascicle
         rows.append(row)
@@ -418,24 +445,22 @@ def _make_mock_path_metadata_with_csvs():
             {
                 'basename': 'fascicles.csv',
                 'mimetype': 'text/csv',
-                'dataset_relative_path': 'primary/sub-f006/sam-l/'
-                                         'sam-l-seg-t5-A-L3/fascicles.csv',
+                'dataset_relative_path': 'primary/sub-f006/sam-l/' 'sam-l-seg-t5-A-L3/fascicles.csv',
                 'remote_id': 'package:aaaa-1111-2222-3333-444444444444',
                 'dataset_id': 'dataset:' + F006_UUID,
                 'uri_api': 'https://api.pennsieve.io/packages/'
-                           'N:package:aaaa-1111-2222-3333-444444444444/'
-                           'files/9999901',
+                'N:package:aaaa-1111-2222-3333-444444444444/'
+                'files/9999901',
             },
             {
                 'basename': 'fibers.csv',
                 'mimetype': 'text/csv',
-                'dataset_relative_path': 'primary/sub-f006/sam-l/'
-                                         'sam-l-seg-t5-A-L3/fibers.csv',
+                'dataset_relative_path': 'primary/sub-f006/sam-l/' 'sam-l-seg-t5-A-L3/fibers.csv',
                 'remote_id': 'package:bbbb-1111-2222-3333-444444444444',
                 'dataset_id': 'dataset:' + F006_UUID,
                 'uri_api': 'https://api.pennsieve.io/packages/'
-                           'N:package:bbbb-1111-2222-3333-444444444444/'
-                           'files/9999902',
+                'N:package:bbbb-1111-2222-3333-444444444444/'
+                'files/9999902',
             },
         ],
     }
@@ -446,22 +471,27 @@ def mock_curation_export():
     """Minimal curation-export with one subject, one section sample, one site."""
     return {
         'subjects': [
-            {'subject_id': 'sub-f006',
-             'species': {'id': 'NCBITaxon_9606'}},
+            {'subject_id': 'sub-f006', 'species': {'id': 'NCBITaxon_9606'}},
         ],
         'samples': [
-            {'sample_id': 'sam-l',
-             'sample_type': 'nerve',
-             'subject_id': 'sub-f006'},
-            {'sample_id': 'sam-l-seg-t5-A-L3',
-             'sample_type': 'section',
-             'subject_id': 'sub-f006',
-             'was_derived_from': ['sam-l']},
+            {
+                'sample_id': 'sam-l',
+                'sample_type': 'nerve',
+                'subject_id': 'sub-f006',
+            },
+            {
+                'sample_id': 'sam-l-seg-t5-A-L3',
+                'sample_type': 'section',
+                'subject_id': 'sub-f006',
+                'was_derived_from': ['sam-l'],
+            },
         ],
         'sites': [
-            {'site_id': 'site-l-seg-t5-A-L3-1',
-             'site_type': 'extruded plane',
-             'specimen_id': 'sam-l-seg-t5-A-L3'},
+            {
+                'site_id': 'site-l-seg-t5-A-L3-1',
+                'site_type': 'extruded plane',
+                'specimen_id': 'sam-l-seg-t5-A-L3',
+            },
         ],
     }
 
@@ -481,11 +511,16 @@ class TestFascFibStructure:
         }
         fetcher = lambda blob: content_map[blob['basename']]
 
-        result = extract_fasc_fib_v2(
-            mock_curation_export, mock_pm, F006_UUID, fetcher)
+        result = extract_fasc_fib_v2(mock_curation_export, mock_pm, F006_UUID, fetcher)
 
-        expected_keys = {'fascicles', 'fibers', 'parents', 'objects',
-                         'quant_values', 'cat_values'}
+        expected_keys = {
+            'fascicles',
+            'fibers',
+            'parents',
+            'objects',
+            'quant_values',
+            'cat_values',
+        }
         assert set(result.keys()) == expected_keys
 
     def test_fascicle_count(self, mock_curation_export):
@@ -499,8 +534,7 @@ class TestFascFibStructure:
         }
         fetcher = lambda blob: content_map[blob['basename']]
 
-        result = extract_fasc_fib_v2(
-            mock_curation_export, mock_pm, F006_UUID, fetcher)
+        result = extract_fasc_fib_v2(mock_curation_export, mock_pm, F006_UUID, fetcher)
         assert len(result['fascicles']) == n_fasc
 
     def test_fiber_count(self, mock_curation_export):
@@ -514,16 +548,14 @@ class TestFascFibStructure:
         }
         fetcher = lambda blob: content_map[blob['basename']]
 
-        result = extract_fasc_fib_v2(
-            mock_curation_export, mock_pm, F006_UUID, fetcher)
+        result = extract_fasc_fib_v2(mock_curation_export, mock_pm, F006_UUID, fetcher)
         assert len(result['fibers']) == n_fib
 
     def test_empty_csv_entries(self, mock_curation_export):
         """No CSV entries → empty results."""
         pm = {'data': []}
         fetcher = lambda blob: []
-        result = extract_fasc_fib_v2(
-            mock_curation_export, pm, F006_UUID, fetcher)
+        result = extract_fasc_fib_v2(mock_curation_export, pm, F006_UUID, fetcher)
         assert result['fascicles'] == []
         assert result['fibers'] == []
         assert result['parents'] == []
@@ -544,8 +576,7 @@ class TestFascicleExtraction:
             'fibers.csv': fib_rows,
         }
         fetcher = lambda blob: content_map[blob['basename']]
-        return extract_fasc_fib_v2(
-            mock_curation_export, mock_pm, F006_UUID, fetcher)
+        return extract_fasc_fib_v2(mock_curation_export, mock_pm, F006_UUID, fetcher)
 
     def test_fascicle_id_formal_pattern(self, fasc_result):
         """VAL-EXT-003: id_formal matches fasc-* pattern."""
@@ -571,17 +602,19 @@ class TestFascicleExtraction:
 
     def test_fascicle_quant_values_count(self, fasc_result):
         """4 quant descriptors per fascicle (from mock with 4-col header)."""
-        fasc_qv = [v for v in fasc_result['quant_values']
-                    if v['desc_inst'] == 'fascicle-cross-section']
+        fasc_qv = [v for v in fasc_result['quant_values'] if v['desc_inst'] == 'fascicle-cross-section']
         # 3 fascicles × 4 descriptors = 12
         assert len(fasc_qv) == 3 * 4
 
     def test_fascicle_quant_descriptors(self, fasc_result):
         """Quant descriptor labels match expected columns."""
-        descs = {v['desc_quant'] for v in fasc_result['quant_values']
-                 if v['desc_inst'] == 'fascicle-cross-section'}
-        assert descs == {'area', 'longest_diameter', 'shortest_diameter',
-                         'eff_diam'}
+        descs = {v['desc_quant'] for v in fasc_result['quant_values'] if v['desc_inst'] == 'fascicle-cross-section'}
+        assert descs == {
+            'area',
+            'longest_diameter',
+            'shortest_diameter',
+            'eff_diam',
+        }
 
     def test_fascicle_string_fk_labels(self, fasc_result):
         """VAL-EXT-005: FK columns use string labels."""
@@ -592,8 +625,7 @@ class TestFascicleExtraction:
     def test_fascicle_parent_relationships(self, fasc_result):
         """Fascicle parents point to sample/site."""
         fasc_ids = {f['id_formal'] for f in fasc_result['fascicles']}
-        fasc_parents = [p for p in fasc_result['parents']
-                        if p['child'] in fasc_ids]
+        fasc_parents = [p for p in fasc_result['parents'] if p['child'] in fasc_ids]
         assert len(fasc_parents) == len(fasc_result['fascicles'])
         for p in fasc_parents:
             # parent is the sample since no site in path
@@ -613,8 +645,7 @@ class TestFiberExtraction:
             'fibers.csv': fib_rows,
         }
         fetcher = lambda blob: content_map[blob['basename']]
-        return extract_fasc_fib_v2(
-            mock_curation_export, mock_pm, F006_UUID, fetcher)
+        return extract_fasc_fib_v2(mock_curation_export, mock_pm, F006_UUID, fetcher)
 
     def test_fiber_id_formal_pattern(self, fib_result):
         """VAL-EXT-004: id_formal matches fiber-* pattern."""
@@ -635,16 +666,18 @@ class TestFiberExtraction:
 
     def test_fiber_quant_values_count(self, fib_result):
         """4 quant descriptors per fiber."""
-        fib_qv = [v for v in fib_result['quant_values']
-                   if v['desc_inst'] == 'fiber-cross-section']
+        fib_qv = [v for v in fib_result['quant_values'] if v['desc_inst'] == 'fiber-cross-section']
         # 5 fibers × 4 descriptors = 20
         assert len(fib_qv) == 5 * 4
 
     def test_fiber_quant_descriptors(self, fib_result):
-        descs = {v['desc_quant'] for v in fib_result['quant_values']
-                 if v['desc_inst'] == 'fiber-cross-section'}
-        assert descs == {'fiber_area', 'longest_diameter',
-                         'shortest_diameter', 'eff_fib_diam'}
+        descs = {v['desc_quant'] for v in fib_result['quant_values'] if v['desc_inst'] == 'fiber-cross-section'}
+        assert descs == {
+            'fiber_area',
+            'longest_diameter',
+            'shortest_diameter',
+            'eff_fib_diam',
+        }
 
     def test_fiber_cat_values_count(self, fib_result):
         """1 categorical value per fiber (myelinated)."""
@@ -676,8 +709,7 @@ class TestFiberExtraction:
     def test_fiber_parent_is_fascicle(self, fib_result):
         """Fibers with fascicle column have fasc-* parent."""
         fib_ids = {f['id_formal'] for f in fib_result['fibers']}
-        fib_parents = [p for p in fib_result['parents']
-                       if p['child'] in fib_ids]
+        fib_parents = [p for p in fib_result['parents'] if p['child'] in fib_ids]
         assert len(fib_parents) == len(fib_result['fibers'])
         for p in fib_parents:
             assert p['parent'].startswith('fasc-')
@@ -695,8 +727,7 @@ class TestFiberWithoutFascicleColumn:
             'fibers.csv': fib_rows,
         }
         fetcher = lambda blob: content_map[blob['basename']]
-        result = extract_fasc_fib_v2(
-            mock_curation_export, mock_pm, F006_UUID, fetcher)
+        result = extract_fasc_fib_v2(mock_curation_export, mock_pm, F006_UUID, fetcher)
 
         # Fibers use index-based id
         ids = [f['id_formal'] for f in result['fibers']]
@@ -716,9 +747,7 @@ class TestFascSubfolderFiltering:
                 {
                     'basename': 'fibers.csv',
                     'mimetype': 'text/csv',
-                    'dataset_relative_path': ('primary/sub-f006/sam-l/'
-                                              'sam-l-seg-t5-A-L3/'
-                                              'fasc-1/fibers.csv'),
+                    'dataset_relative_path': ('primary/sub-f006/sam-l/' 'sam-l-seg-t5-A-L3/' 'fasc-1/fibers.csv'),
                     'remote_id': 'package:cccc-1111-2222-3333-444444444444',
                     'dataset_id': 'dataset:' + F006_UUID,
                     'uri_api': 'https://x/files/1',
@@ -726,8 +755,7 @@ class TestFascSubfolderFiltering:
             ],
         }
         fetcher = lambda blob: _make_mock_fiber_csv(3)
-        result = extract_fasc_fib_v2(
-            mock_curation_export, pm, F006_UUID, fetcher)
+        result = extract_fasc_fib_v2(mock_curation_export, pm, F006_UUID, fetcher)
         # fasc-N/fibers.csv should be excluded
         assert result['fibers'] == []
 
@@ -744,8 +772,7 @@ class TestObjectsExtraction:
             'fibers.csv': fib_rows,
         }
         fetcher = lambda blob: content_map[blob['basename']]
-        result = extract_fasc_fib_v2(
-            mock_curation_export, mock_pm, F006_UUID, fetcher)
+        result = extract_fasc_fib_v2(mock_curation_export, mock_pm, F006_UUID, fetcher)
 
         # 2 objects: 1 fascicle CSV + 1 fiber CSV
         assert len(result['objects']) == 2
@@ -753,8 +780,7 @@ class TestObjectsExtraction:
     def test_object_values(self, mock_curation_export):
         mock_pm = _make_mock_path_metadata_with_csvs()
         fetcher = lambda blob: _make_mock_fasc_csv(1) if 'fascicles' in blob['basename'] else _make_mock_fiber_csv(1)
-        result = extract_fasc_fib_v2(
-            mock_curation_export, mock_pm, F006_UUID, fetcher)
+        result = extract_fasc_fib_v2(mock_curation_export, mock_pm, F006_UUID, fetcher)
         for uuid, obj in result['objects'].items():
             assert obj['id_type'] == 'package'
             assert isinstance(obj['file_id'], int)
@@ -796,17 +822,16 @@ class TestFascFibIntegration:
     def integration_result(self, curation_export, path_metadata):
         """Try to fetch real CSV data and run extraction."""
         from quantdb.extract_v2 import _find_csv_entries
+
         csv_entries = _find_csv_entries(path_metadata)
         if not csv_entries:
-            pytest.skip('No CSV entries in path-metadata '
-                        '(CSVs not in cassava metadata)')
+            pytest.skip('No CSV entries in path-metadata ' '(CSVs not in cassava metadata)')
 
         fetcher = _make_csv_fetcher_from_pennsieve()
         if fetcher is None:
             pytest.skip('sparcur path_from_blob not available')
 
-        result = extract_fasc_fib_v2(
-            curation_export, path_metadata, F006_UUID, fetcher)
+        result = extract_fasc_fib_v2(curation_export, path_metadata, F006_UUID, fetcher)
 
         if not result['fascicles'] and not result['fibers']:
             pytest.skip('No CSV data fetched (likely auth issue)')
