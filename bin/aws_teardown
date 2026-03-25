@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+# aws_teardown -- delete f006 data from AWS RDS in FK-safe order.
+#
+# Removes all f006 dataset data while preserving the schema, lookup
+# tables, and any other datasets' data.
+#
+# Options:
+#   --drop-schema   Also drop the entire quantdb schema after cleanup.
+#
+# Idempotent: safe to run even when no f006 data exists.
+#
+# Usage:
+#   bash bin/aws_teardown
+#   bash bin/aws_teardown --drop-schema
+set -e
+
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+  DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+ABS_PATH="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+
+# ---- AWS RDS configuration ------------------------------------------------
+AWS_HOST="troy-quantdb-test.crxhhfokqjgu.us-east-1.rds.amazonaws.com"
+AWS_PORT=5432
+AWS_DB="postgres"
+AWS_USER="postgres"
+
+F006_UUID="2a3d01c0-39d3-464a-8746-54c9d67ebe0f"
+
+DROP_SCHEMA=false
+for arg in "$@"; do
+    case $arg in
+        --drop-schema)
+            DROP_SCHEMA=true
+            ;;
+    esac
+done
+
+export PGSSLMODE=require
+
+aws_psql() {
+    psql -U "$AWS_USER" -h "$AWS_HOST" -p "$AWS_PORT" -d "$AWS_DB" "$@"
+}
+
+echo "=== AWS Teardown: f006 data on ${AWS_HOST} ==="
+
+# Check if schema exists
+SCHEMA_EXISTS=$(aws_psql -t -A -c \
+    "SELECT count(*) FROM information_schema.schemata WHERE schema_name = 'quantdb';")
+
+if [ "$SCHEMA_EXISTS" -eq 0 ]; then
+    echo "quantdb schema does not exist, nothing to do."
+    exit 0
+fi
+
+# Delete f006 data in FK-safe child-first order inside a single
+# transaction.  A temp table captures all related object UUIDs before
+# any rows are removed.
+echo "Deleting f006 data in FK-safe order..."
+
+aws_psql -v ON_ERROR_STOP=on <<SQL
+BEGIN;
+
+-- Capture f006-related object UUIDs before deletion
+CREATE TEMP TABLE _f006_objs (id uuid) ON COMMIT DROP;
+
+INSERT INTO _f006_objs (id)
+    SELECT object FROM quantdb.dataset_object WHERE dataset = '${F006_UUID}'
+    UNION
+    SELECT id FROM quantdb.objects_internal WHERE dataset = '${F006_UUID}'
+    UNION
+    SELECT '${F006_UUID}'::uuid;
+
+-- 1. values_quant, values_cat (leaf tables)
+DELETE FROM quantdb.values_quant
+ WHERE object IN (SELECT id FROM _f006_objs);
+DELETE FROM quantdb.values_cat
+ WHERE object IN (SELECT id FROM _f006_objs);
+
+-- 2. obj_desc_quant, obj_desc_cat
+DELETE FROM quantdb.obj_desc_quant
+ WHERE object IN (SELECT id FROM _f006_objs);
+DELETE FROM quantdb.obj_desc_cat
+ WHERE object IN (SELECT id FROM _f006_objs);
+
+-- 3. obj_desc_inst
+DELETE FROM quantdb.obj_desc_inst
+ WHERE object IN (SELECT id FROM _f006_objs);
+
+-- 4. instance_parent, equiv_inst
+DELETE FROM quantdb.instance_parent
+ WHERE id IN (SELECT id FROM quantdb.values_inst
+              WHERE dataset = '${F006_UUID}');
+DELETE FROM quantdb.equiv_inst
+ WHERE left_thing IN (SELECT id FROM quantdb.values_inst
+                      WHERE dataset = '${F006_UUID}')
+    OR right_thing IN (SELECT id FROM quantdb.values_inst
+                       WHERE dataset = '${F006_UUID}');
+
+-- 5. values_inst
+DELETE FROM quantdb.values_inst
+ WHERE dataset = '${F006_UUID}';
+
+-- 6. dataset_object
+DELETE FROM quantdb.dataset_object
+ WHERE dataset = '${F006_UUID}';
+
+-- 7. Break circular FK: objects.id_internal -> objects_internal.id
+UPDATE quantdb.objects
+   SET id_internal = NULL
+ WHERE id IN (SELECT id FROM _f006_objs)
+   AND id_internal IS NOT NULL;
+
+-- 8. objects_internal
+DELETE FROM quantdb.objects_internal
+ WHERE dataset = '${F006_UUID}';
+
+-- 9. objects (package + dataset object)
+DELETE FROM quantdb.objects
+ WHERE id IN (SELECT id FROM _f006_objs);
+
+COMMIT;
+SQL
+
+echo "f006 data deleted."
+
+if [ "$DROP_SCHEMA" = true ]; then
+    echo ""
+    echo "Dropping quantdb schema..."
+    aws_psql -v ON_ERROR_STOP=on -c "DROP SCHEMA IF EXISTS quantdb CASCADE;"
+    echo "Schema dropped."
+fi
+
+echo "=== AWS Teardown complete ==="

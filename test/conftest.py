@@ -9,6 +9,36 @@ from quantdb.config import auth
 
 
 # ---------------------------------------------------------------------------
+# pytest CLI flag: --run-aws
+# ---------------------------------------------------------------------------
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        '--run-aws',
+        action='store_true',
+        default=False,
+        help='Run tests marked with @pytest.mark.aws',
+    )
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        'markers',
+        'aws: mark test as requiring AWS RDS connectivity',
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    if config.getoption('--run-aws'):
+        return
+    skip_aws = pytest.mark.skip(reason='need --run-aws option to run')
+    for item in items:
+        if 'aws' in item.keywords:
+            item.add_marker(skip_aws)
+
+
+# ---------------------------------------------------------------------------
 # Flask fixtures (used by test_api.py)
 # ---------------------------------------------------------------------------
 

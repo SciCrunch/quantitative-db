@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# aws_setup -- set up the quantdb schema on the AWS RDS test instance.
+#
+# Creates roles, schema, tables, functions, triggers, permissions, and
+# loads lookup/reference data from sql/inserts.sql.
+#
+# Idempotent: safe to re-run.  Tables and lookup data are only created
+# when they do not already exist.
+#
+# Usage:
+#   bash bin/aws_setup
+set -e
+
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+  DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+ABS_PATH="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+
+SQL="${ABS_PATH}/../sql"
+
+# ---- AWS RDS configuration ------------------------------------------------
+AWS_HOST="troy-quantdb-test.crxhhfokqjgu.us-east-1.rds.amazonaws.com"
+AWS_PORT=5432
+AWS_DB="postgres"
+AWS_USER="postgres"
+
+export PGSSLMODE=require
+
+aws_psql() {
+    psql -U "$AWS_USER" -h "$AWS_HOST" -p "$AWS_PORT" -d "$AWS_DB" "$@"
+}
+
+echo "=== AWS Setup: quantdb schema on ${AWS_HOST} ==="
+
+# Step 1: Create roles (idempotent -- postgres.sql uses IF NOT EXISTS)
+echo "Step 1: Creating roles..."
+aws_psql -f "${SQL}/postgres.sql" \
+    -v ON_ERROR_STOP=on \
+    -v test_database="${AWS_DB}" \
+    -v database="${AWS_DB}"
+
+# Step 2: Set search_path for the postgres role so subsequent
+#         connections default to quantdb, public
+echo "Step 2: Setting search_path..."
+aws_psql -c "ALTER ROLE postgres SET search_path = quantdb, public;"
+
+# Step 3: Create the quantdb schema (idempotent -- IF NOT EXISTS)
+echo "Step 3: Creating schema..."
+aws_psql -f "${SQL}/schemas.sql" -v ON_ERROR_STOP=on
+
+# Step 4: Create tables, functions, triggers
+#         Skip if tables already exist (tables.sql is not idempotent)
+TABLE_COUNT=$(aws_psql -t -A -c \
+    "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'quantdb';")
+if [ "$TABLE_COUNT" -eq 0 ]; then
+    echo "Step 4: Creating tables, functions, triggers..."
+    aws_psql -f "${SQL}/tables.sql" -v ON_ERROR_STOP=on
+else
+    echo "Step 4: Tables already exist (${TABLE_COUNT} tables), skipping."
+fi
+
+# Step 5: Grant permissions (GRANT is inherently idempotent)
+echo "Step 5: Granting permissions..."
+aws_psql -f "${SQL}/permissions.sql" \
+    -v ON_ERROR_STOP=on \
+    -v database="${AWS_DB}" \
+    -v perm_user="${AWS_USER}"
+
+# Step 6: Load lookup/reference data
+#         Skip if data is already present (inserts.sql is not idempotent)
+UNITS_COUNT=$(aws_psql -t -A -c "SELECT count(*) FROM quantdb.units;")
+if [ "$UNITS_COUNT" -eq 0 ]; then
+    echo "Step 6: Loading lookup data from inserts.sql..."
+    aws_psql -f "${SQL}/inserts.sql" -v ON_ERROR_STOP=on
+else
+    echo "Step 6: Lookup data already loaded (${UNITS_COUNT} units), skipping."
+fi
+
+echo "=== AWS Setup complete ==="
