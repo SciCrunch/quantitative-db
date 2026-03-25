@@ -1,0 +1,15 @@
+{
+  "featureId": "fix-ext-species-alias",
+  "reviewedAt": "2026-03-25T09:58:55Z",
+  "commitId": "2c35ec60d3ead6c6852948a5b35125340626f229",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Pass. The fix commit directly addresses the prior blocking gap from `entity-metadata-extraction`: `_TRANSLATE_SPECIES` now includes the explicit `NCBITaxon_9606` alias, and the test suite now exercises the missing compact uppercase form instead of relying only on the cached f006 payload. I reviewed both the original failing diff (`febd255`) and the fix diff (`2c35ec6`); within this feature's scope, the original scrutiny issues are adequately resolved.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": "/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/.factory/validation/extraction-layer/scrutiny/reviews/entity-metadata-extraction.json",
+  "summary": "Pass. The rerun fix resolves the original scrutiny failure by adding `NCBITaxon_9606 -> human` in `quantdb/extract_v2.py` and adding focused tests in `test/test_extract_v2.py` that cover the missing alias path."
+}

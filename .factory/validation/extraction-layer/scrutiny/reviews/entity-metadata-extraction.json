@@ -1,0 +1,34 @@
+{
+  "featureId": "entity-metadata-extraction",
+  "reviewedAt": "2026-03-25T10:05:00Z",
+  "commitId": "febd2550574a0620176572ee88c8995a6bc30e59",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The feature gets the live f006 cache into roughly the right shape, but it does not fully satisfy its scoped contract. The implementation misses one of the explicitly required species aliases (`NCBITaxon_9606`), and the accompanying tests only exercise the live OntTerm/URL form so the gap was not caught.",
+    "issues": [
+      {
+        "file": "quantdb/extract_v2.py",
+        "line": 44,
+        "severity": "blocking",
+        "description": "`_translate_species()` does not implement the full species translation contract from `features.json:385`. The feature explicitly requires both `NCBITaxon_9606` and `ncbitaxon:9606` to map to `human`, but the commit only recognizes `ncbitaxon:9606` and the full OBO URL (`quantdb/extract_v2.py:15-18,33-44`). Exercising the helper with `NCBITaxon_9606` raises `KeyError`, so this feature does not fully cover the required input variants."
+      },
+      {
+        "file": "test/test_extract_v2.py",
+        "line": 101,
+        "severity": "non_blocking",
+        "description": "The new tests never cover the explicit `NCBITaxon_9606` alias requirement. The only species assertion checks the extracted subject from the cached f006 payload (`test/test_extract_v2.py:101-103`), which currently uses the OntTerm/URL form, so the missing alias branch in `_translate_species()` can slip through unnoticed."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "knowledge",
+      "observation": "The mission shared state does not currently capture the accepted species-encoding variants for entity extraction, which makes it easy for workers to overfit tests to the live cached payload and miss documented aliases.",
+      "evidence": "`features.json:385` requires both `NCBITaxon_9606` and `ncbitaxon:9606` to translate to `human`, but the reviewed transcript and tests center on the cached f006 file and `test/test_extract_v2.py` only validates the live extracted record, not the alternate aliases."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Fail. Commit `febd255` adds the requested extraction module and tests, but it misses a required species alias (`NCBITaxon_9606` -> `human`). The test suite also lacks coverage for that branch, so the feature should not pass scrutiny yet."
+}
