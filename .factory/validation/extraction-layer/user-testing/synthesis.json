@@ -1,0 +1,27 @@
+{
+  "milestone": "extraction-layer",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 4,
+    "passed": 4,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-EXT-001",
+    "VAL-EXT-002",
+    "VAL-EXT-005",
+    "VAL-EXT-006"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [
+    {
+      "target": "user-testing.md",
+      "description": "Documented extraction-layer effective concurrency and clarified that extraction-layer user testing should validate only VAL-EXT-001, VAL-EXT-002, VAL-EXT-005, and VAL-EXT-006 because VAL-EXT-003/004 were deferred to the ingest milestone.",
+      "source": "setup"
+    }
+  ],
+  "previousRound": null
+}

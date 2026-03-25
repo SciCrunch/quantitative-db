@@ -31,6 +31,8 @@ Max concurrent validators: **5** (each validator runs pytest which connects to P
 
 For the `gold-standard-snapshots` milestone, the effective concurrency is **1** despite the machine ceiling above. The snapshot tests share the same `quantdb_test` database and rely on the session-scoped `rebuild_database` fixture, which drops/restores the database; concurrent pytest validators against that same DB can interfere with each other.
 
+For the `extraction-layer` milestone, the effective concurrency is also **1** for the current assertion set. The user-testing flow only needs one targeted pytest selection covering cache-backed entity extraction and JPX path extraction assertions, so extra parallel validators would add overhead without improving coverage.
+
 ## Test Markers
 
 - Default: runs all non-AWS tests
@@ -49,4 +51,5 @@ For the `gold-standard-snapshots` milestone, the effective concurrency is **1** 
 - Stay on the real CLI/pytest surface: validate with pytest and, if needed, read-only `psql` spot checks.
 - Ignore `test/test_api.py` on every pytest invocation.
 - Treat `quantdb_test` on localhost as a shared singleton resource. Do not run milestone pytest flows concurrently against it.
-- Keep writes inside the validator's assigned report path under `.factory/validation/gold-standard-snapshots/user-testing/flows/` and evidence path under the mission directory.
+- For `extraction-layer`, validate only the assertions still fulfilled by the completed milestone features: `VAL-EXT-001`, `VAL-EXT-002`, `VAL-EXT-005`, and `VAL-EXT-006`. `VAL-EXT-003` and `VAL-EXT-004` were deferred by the orchestrator to the ingest milestone because the cached cassava metadata does not contain the required CSV entries.
+- Keep writes inside the validator's assigned report path under `.factory/validation/<milestone>/user-testing/flows/` and evidence path under the mission directory.
