@@ -15,6 +15,7 @@ from collections import defaultdict, deque
 
 _TRANSLATE_SPECIES = {
     'ncbitaxon:9606': 'human',
+    'NCBITaxon_9606': 'human',
     'http://purl.obolibrary.org/obo/NCBITaxon_9606': 'human',
 }
 

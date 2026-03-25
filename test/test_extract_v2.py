@@ -20,6 +20,7 @@ from pathlib import Path
 import pytest
 
 from quantdb.extract_v2 import (
+    _translate_species,
     extract_entities_v2,
     extract_fasc_fib_v2,
     extract_reva_ft_v2,
@@ -65,6 +66,30 @@ def gold_standard_breakdown():
         pytest.skip(f'Gold-standard fixture not found: {path}')
     with open(path) as f:
         return json.load(f)
+
+
+# ---------------------------------------------------------------------------
+# Test: Species translation
+# ---------------------------------------------------------------------------
+
+
+class TestTranslateSpecies:
+    """Verify _translate_species handles all known species alias formats."""
+
+    def test_ncbitaxon_colon_lowercase(self):
+        assert _translate_species('ncbitaxon:9606') == 'human'
+
+    def test_ncbitaxon_underscore_uppercase(self):
+        """NCBITaxon_9606 compact format must resolve to 'human'."""
+        assert _translate_species('NCBITaxon_9606') == 'human'
+
+    def test_ncbitaxon_full_url(self):
+        url = 'http://purl.obolibrary.org/obo/NCBITaxon_9606'
+        assert _translate_species(url) == 'human'
+
+    def test_ncbitaxon_dict_with_id(self):
+        """Species passed as dict with 'id' key (NCBITaxon_9606 variant)."""
+        assert _translate_species({'id': 'NCBITaxon_9606'}) == 'human'
 
 
 # ---------------------------------------------------------------------------
