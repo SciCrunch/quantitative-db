@@ -11,6 +11,7 @@ Requires:
 """
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Generator
 
 import pytest
@@ -338,3 +339,310 @@ class TestIngestF006:
         assert post_counts['obj_desc_inst'] > 0, 'obj_desc_inst should have rows after ingest'
         assert post_counts['obj_desc_quant'] > 0, 'obj_desc_quant should have rows after ingest'
         assert post_counts['obj_desc_cat'] > 0, 'obj_desc_cat should have rows after ingest'
+
+
+# ---------------------------------------------------------------------------
+# Module-scoped fixture: extract -> delete -> ingest ONCE
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope='module')
+def f006_ingested_session(
+    reflected: ReflectedModels,
+) -> Generator[Session, None, None]:
+    """Run the full extract->delete->ingest cycle once at module scope.
+
+    Shares the resulting session across all ``TestComparisonProof``
+    tests so the ~8-minute pipeline is not repeated per assertion.
+    """
+    sess = reflected.Session()
+
+    # Extract f006 data while production dump is present
+    data_dicts = extract_f006_from_db(sess, reflected)
+
+    # Delete all f006 data (FK-safe child-first)
+    delete_f006_data(sess, reflected)
+
+    # Verify zeros after deletion
+    zero_counts = _count_f006(sess, reflected)
+    for table_name, count in zero_counts.items():
+        assert count == 0, f'{table_name}: expected 0 after deletion, got {count}'
+
+    # Re-ingest via v2 pipeline
+    ingest_f006_v2(sess, reflected, data_dicts)
+
+    yield sess
+
+    sess.rollback()
+    sess.close()
+
+
+# ---------------------------------------------------------------------------
+# Tests: Comparison proof (post-ingest assertions)
+# ---------------------------------------------------------------------------
+
+
+class TestComparisonProof:
+    """Post-ingest proof: exact counts, breakdowns, and spot-checks.
+
+    All tests share a single module-scoped session that ran
+    extract -> delete -> ingest once.  This avoids running the
+    ~8-minute pipeline for each individual assertion.
+    """
+
+    # ---- Exact count assertions (VAL-ING-001 through VAL-ING-008) ----
+
+    def test_values_inst_total(self, f006_ingested_session, reflected):
+        """VAL-ING-001: values_inst count matches 609,390."""
+        counts = _count_f006(f006_ingested_session, reflected)
+        assert counts['values_inst'] == 609_390
+
+    def test_instance_parent_count(self, f006_ingested_session, reflected):
+        """VAL-ING-003: instance_parent count matches 609,389."""
+        counts = _count_f006(f006_ingested_session, reflected)
+        assert counts['instance_parent'] == 609_389
+
+    def test_dataset_object_count(self, f006_ingested_session, reflected):
+        """VAL-ING-004: dataset_object count matches 121."""
+        counts = _count_f006(f006_ingested_session, reflected)
+        assert counts['dataset_object'] == 121
+
+    def test_values_quant_total(self, f006_ingested_session, reflected):
+        """VAL-ING-005: values_quant count matches 2,445,944."""
+        counts = _count_f006(f006_ingested_session, reflected)
+        assert counts['values_quant'] == 2_445_944
+
+    def test_values_cat_total(self, f006_ingested_session, reflected):
+        """VAL-ING-006: values_cat count matches 608,859."""
+        counts = _count_f006(f006_ingested_session, reflected)
+        assert counts['values_cat'] == 608_859
+
+    def test_equiv_inst_count(self, f006_ingested_session, reflected):
+        """VAL-ING-007: equiv_inst count matches 37."""
+        counts = _count_f006(f006_ingested_session, reflected)
+        assert counts['equiv_inst'] == 37
+
+    def test_objects_internal_count(self, f006_ingested_session, reflected):
+        """VAL-ING-008: objects_internal count matches 1."""
+        counts = _count_f006(f006_ingested_session, reflected)
+        assert counts['objects_internal'] == 1
+
+    # ---- Values_inst breakdown (VAL-ING-002) ----
+
+    def test_values_inst_breakdown(self, f006_ingested_session, reflected):
+        """VAL-ING-002: (type, desc_inst_label) breakdown matches all 7 groups."""
+        VI = reflected.ValuesInst
+        DI = reflected.DescriptorsInst
+        stmt = (
+            select(VI.type, DI.label, func.count())
+            .join(DI, VI.desc_inst == DI.id)
+            .where(VI.dataset == F006_UUID)
+            .group_by(VI.type, DI.label)
+            .order_by(VI.type, DI.label)
+        )
+        rows = f006_ingested_session.execute(stmt).all()
+        breakdown = {(row[0], row[1]): row[2] for row in rows}
+
+        expected = {
+            ('subject', 'human'): 1,
+            ('sample', 'nerve-volume'): 61,
+            ('sample', 'nerve-cross-section'): 27,
+            ('sample', 'nerve'): 2,
+            ('site', 'extruded-plane'): 60,
+            ('below', 'fiber-cross-section'): 608_811,
+            ('below', 'fascicle-cross-section'): 428,
+        }
+        assert breakdown == expected
+
+    # ---- Fiber descriptor breakdown (VAL-ING-009) ----
+
+    def test_fiber_quant_descriptors(self, f006_ingested_session, reflected):
+        """VAL-ING-009: 4 fiber descriptors at 608,811 each."""
+        VQ = reflected.ValuesQuant
+        DQ = reflected.DescriptorsQuant
+        DO = reflected.DatasetObject
+
+        f006_objects = select(DO.object).where(DO.dataset == F006_UUID)
+
+        stmt = (
+            select(DQ.label, func.count())
+            .select_from(VQ)
+            .join(DQ, VQ.desc_quant == DQ.id)
+            .where(VQ.object.in_(f006_objects))
+            .group_by(DQ.label)
+            .order_by(DQ.label)
+        )
+        rows = f006_ingested_session.execute(stmt).all()
+        breakdown = {row[0]: row[1] for row in rows}
+
+        fiber_descriptors = [
+            'fiber cross section area um2',
+            'fiber cross section diameter um',
+            'fiber cross section diameter um max',
+            'fiber cross section diameter um min',
+        ]
+        for desc in fiber_descriptors:
+            assert desc in breakdown, f'Missing descriptor: {desc}'
+            assert breakdown[desc] == 608_811, f'{desc}: expected 608811, got {breakdown[desc]}'
+
+    # ---- hasAxonFiberType (VAL-ING-010) ----
+
+    def test_has_axon_fiber_type(self, f006_ingested_session, reflected):
+        """VAL-ING-010: hasAxonFiberType = 608,811."""
+        VC = reflected.ValuesCat
+        DC = reflected.DescriptorsCat
+        DO = reflected.DatasetObject
+
+        f006_objects = select(DO.object).where(DO.dataset == F006_UUID)
+
+        stmt = (
+            select(func.count())
+            .select_from(VC)
+            .join(DC, VC.desc_cat == DC.id)
+            .where(VC.object.in_(f006_objects))
+            .where(DC.label == 'hasAxonFiberType')
+        )
+        count = f006_ingested_session.execute(stmt).scalar_one()
+        assert count == 608_811
+
+    # ---- obj_desc_* existence (VAL-ING-011) ----
+
+    def test_obj_desc_inst_exists(self, f006_ingested_session, reflected):
+        """VAL-ING-011: obj_desc_inst rows exist after ingest."""
+        counts = _count_f006(f006_ingested_session, reflected)
+        assert counts['obj_desc_inst'] > 0, 'obj_desc_inst should have rows (trigger prereqs)'
+
+    def test_obj_desc_quant_exists(self, f006_ingested_session, reflected):
+        """VAL-ING-011: obj_desc_quant rows exist after ingest."""
+        counts = _count_f006(f006_ingested_session, reflected)
+        assert counts['obj_desc_quant'] > 0, 'obj_desc_quant should have rows (trigger prereqs)'
+
+    def test_obj_desc_cat_exists(self, f006_ingested_session, reflected):
+        """VAL-ING-011: obj_desc_cat rows exist after ingest."""
+        counts = _count_f006(f006_ingested_session, reflected)
+        assert counts['obj_desc_cat'] > 0, 'obj_desc_cat should have rows (trigger prereqs)'
+
+    # ---- Spot-check values (VAL-ING-013) ----
+
+    def test_spot_check_values_quant(self, f006_ingested_session, reflected):
+        """VAL-ING-013: fiber values_quant have valid numeric values."""
+        VQ = reflected.ValuesQuant
+        DQ = reflected.DescriptorsQuant
+        DI = reflected.DescriptorsInst
+        VI = reflected.ValuesInst
+        DO = reflected.DatasetObject
+
+        f006_objects = select(DO.object).where(DO.dataset == F006_UUID)
+
+        # Pick a small sample of fiber quant values and verify numerics
+        stmt = (
+            select(VQ.value, DQ.label, VI.id_formal)
+            .join(DQ, VQ.desc_quant == DQ.id)
+            .join(VI, VQ.instance == VI.id)
+            .join(DI, VI.desc_inst == DI.id)
+            .where(VQ.object.in_(f006_objects))
+            .where(DI.label == 'fiber-cross-section')
+            .where(
+                DQ.label.in_(
+                    [
+                        'fiber cross section area um2',
+                        'fiber cross section diameter um',
+                        'fiber cross section diameter um max',
+                        'fiber cross section diameter um min',
+                    ]
+                )
+            )
+            .order_by(VI.id_formal, DQ.label)
+            .limit(20)
+        )
+        rows = f006_ingested_session.execute(stmt).all()
+        assert len(rows) == 20, f'Expected 20 spot-check rows, got {len(rows)}'
+        for value, desc_label, id_formal in rows:
+            assert value is not None, f'{id_formal}/{desc_label}: value should not be None'
+            assert isinstance(value, (int, float, Decimal)), (
+                f'{id_formal}/{desc_label}: value should be numeric, ' f'got {type(value)}'
+            )
+            assert value >= 0, f'{id_formal}/{desc_label}: value should be >= 0, ' f'got {value}'
+
+    def test_spot_check_values_cat(self, f006_ingested_session, reflected):
+        """VAL-ING-013: fiber values_cat have valid categorical values."""
+        VC = reflected.ValuesCat
+        DC = reflected.DescriptorsCat
+        CT = reflected.ControlledTerms
+        VI = reflected.ValuesInst
+        DO = reflected.DatasetObject
+
+        f006_objects = select(DO.object).where(DO.dataset == F006_UUID)
+
+        # Verify hasAxonFiberType values are myelinated or unmyelinated
+        stmt = (
+            select(VC.value_open, CT.label, VI.id_formal)
+            .select_from(VC)
+            .join(DC, VC.desc_cat == DC.id)
+            .join(CT, VC.value_controlled == CT.id)
+            .join(VI, VC.instance == VI.id)
+            .where(VC.object.in_(f006_objects))
+            .where(DC.label == 'hasAxonFiberType')
+            .order_by(VI.id_formal)
+            .limit(10)
+        )
+        rows = f006_ingested_session.execute(stmt).all()
+        assert len(rows) == 10, f'Expected 10 spot-check rows, got {len(rows)}'
+        for value_open, ct_label, id_formal in rows:
+            assert ct_label in ('myelinated', 'unmyelinated'), f'{id_formal}: unexpected axon fiber type {ct_label!r}'
+
+    # ---- Fascicle / fiber count validation (VAL-EXT-003/004) ----
+
+    def test_fascicle_count(self, f006_ingested_session, reflected):
+        """VAL-EXT-003: 428 fascicle-cross-section instances."""
+        VI = reflected.ValuesInst
+        DI = reflected.DescriptorsInst
+        stmt = (
+            select(func.count())
+            .select_from(VI)
+            .join(DI, VI.desc_inst == DI.id)
+            .where(VI.dataset == F006_UUID)
+            .where(DI.label == 'fascicle-cross-section')
+        )
+        count = f006_ingested_session.execute(stmt).scalar_one()
+        assert count == 428
+
+    def test_fiber_count(self, f006_ingested_session, reflected):
+        """VAL-EXT-004: 608,811 fiber-cross-section instances."""
+        VI = reflected.ValuesInst
+        DI = reflected.DescriptorsInst
+        stmt = (
+            select(func.count())
+            .select_from(VI)
+            .join(DI, VI.desc_inst == DI.id)
+            .where(VI.dataset == F006_UUID)
+            .where(DI.label == 'fiber-cross-section')
+        )
+        count = f006_ingested_session.execute(stmt).scalar_one()
+        assert count == 608_811
+
+    # ---- Idempotency (VAL-CROSS-003) ----
+
+    @pytest.mark.slow
+    def test_idempotency(self, f006_ingested_session, reflected):
+        """VAL-CROSS-003: second ingest produces same counts.
+
+        Extracts the current (re-ingested) data, deletes, re-ingests
+        a second time, and asserts all counts are unchanged.  Marked
+        ``@pytest.mark.slow`` because it runs the full ~8-min cycle
+        again.
+        """
+        # Record counts from first ingest
+        first_counts = _count_f006(f006_ingested_session, reflected)
+
+        # Extract current state -> delete -> re-ingest
+        data_dicts = extract_f006_from_db(f006_ingested_session, reflected)
+        delete_f006_data(f006_ingested_session, reflected)
+        ingest_f006_v2(f006_ingested_session, reflected, data_dicts)
+
+        # Verify counts match
+        second_counts = _count_f006(f006_ingested_session, reflected)
+        for table_name in first_counts:
+            assert first_counts[table_name] == second_counts[table_name], (
+                f'{table_name}: first={first_counts[table_name]}, ' f'second={second_counts[table_name]}'
+            )
