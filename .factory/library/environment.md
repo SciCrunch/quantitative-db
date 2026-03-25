@@ -26,6 +26,14 @@ Environment variables, external dependencies, and setup notes.
 - AWS RDS: credentials in ~/.pgpass, user=postgres, SSL required
 - orthauth config at ~/.config/quantdb/config.yaml: test-db-* = localhost, db-* = AWS test instance
 
+## macOS Path Length Limitation
+
+- macOS PATH_MAX is 1024 bytes (kernel-hardcoded, not configurable)
+- sparcur's `__DELETED__N:collection:...` directory names exceed this limit for all 224 fiber/fascicle CSVs
+- Local CSV materialization via sparcur is NOT possible on macOS for f006
+- Workaround: use dump-based approach (extract from production DB, not from local files)
+- Alternative for future: run on Linux (4096 char limit) or fetch CSVs directly via Pennsieve API by package ID
+
 ## Cassava Data
 
 - Public metadata API: https://cassava.ucsd.edu/sparc/datasets/{uuid}/LATEST/
