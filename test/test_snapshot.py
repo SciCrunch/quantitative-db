@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -26,7 +27,7 @@ from sqlalchemy.orm import Session
 
 from quantdb.config import auth  # noqa: F401 (used in ensure_database)
 from quantdb.models import ReflectedModels, reflect_models
-from quantdb.snapshot import F006_UUID, extract_f006_snapshot
+from quantdb.snapshot import F006_UUID, compare_snapshot, extract_f006_snapshot
 from quantdb.utils import dbUri
 
 
@@ -497,3 +498,347 @@ class TestDeterministicExtraction:
                 assert h1 == h2, (
                     f'{f1.name} not deterministic: {h1} != {h2}'
                 )
+
+
+# ---------------------------------------------------------------------------
+# Helpers for comparison tests
+# ---------------------------------------------------------------------------
+
+
+def _copy_fixtures(src_dir, dst_dir):
+    """Copy all fixture JSON files from src to dst."""
+    for f in Path(src_dir).glob('*.json'):
+        shutil.copy2(f, Path(dst_dir) / f.name)
+
+
+def _load_and_save(path, modifier_fn):
+    """Load a JSON file, apply modifier_fn, and save back.
+
+    Args:
+        path: Path to the JSON file.
+        modifier_fn: Callable that receives the loaded data and returns
+            the modified data to write back.
+    """
+    with open(path) as f:
+        data = json.load(f)
+    data = modifier_fn(data)
+    with open(path, 'w') as f:
+        json.dump(data, f, sort_keys=True, default=str, indent=2)
+        f.write('\n')
+    return data
+
+
+# ---------------------------------------------------------------------------
+# Test: Comparison utility -- identical comparison
+# ---------------------------------------------------------------------------
+
+
+class TestComparisonIdentical:
+    """VAL-SNAP-008: Comparing a snapshot to itself reports no diffs."""
+
+    def test_is_identical(
+        self,
+        session: Session,
+        reflected: ReflectedModels,
+    ) -> None:
+        """Comparing DB against its own fixtures should be identical."""
+        result = compare_snapshot(session, FIXTURES_DIR, models=reflected)
+        assert result.is_identical
+
+    def test_all_tables_match(
+        self,
+        session: Session,
+        reflected: ReflectedModels,
+    ) -> None:
+        """Every table should report is_match=True."""
+        result = compare_snapshot(session, FIXTURES_DIR, models=reflected)
+        for name, diff in result.tables.items():
+            assert diff.is_match, f'{name} has unexpected diffs'
+
+    def test_no_added_removed_modified(
+        self,
+        session: Session,
+        reflected: ReflectedModels,
+    ) -> None:
+        """Full-row tables should have no added, removed, or modified."""
+        result = compare_snapshot(session, FIXTURES_DIR, models=reflected)
+        for name, diff in result.tables.items():
+            if diff.fixture_type == 'full_rows':
+                assert not diff.added, f'{name}: unexpected added rows'
+                assert not diff.removed, f'{name}: unexpected removed rows'
+                assert not diff.modified, f'{name}: unexpected modified rows'
+
+    def test_all_eleven_tables_compared(
+        self,
+        session: Session,
+        reflected: ReflectedModels,
+    ) -> None:
+        """All 11 fixture files should produce table comparison entries."""
+        result = compare_snapshot(session, FIXTURES_DIR, models=reflected)
+        assert len(result.tables) == 11
+
+
+# ---------------------------------------------------------------------------
+# Test: Comparison utility -- detects added rows
+# ---------------------------------------------------------------------------
+
+
+class TestComparisonDetectsAddedRows:
+    """VAL-SNAP-008: Detects rows in DB not present in fixture.
+
+    To simulate the DB having an extra row, we remove a row from the
+    fixture copy.  The comparison should report it as 'added' (present
+    in DB but absent from the fixture baseline).
+    """
+
+    def test_added_row_detected(
+        self,
+        session: Session,
+        reflected: ReflectedModels,
+        tmp_path: Path,
+    ) -> None:
+        """Remove one dataset_object row from fixture → detected as added."""
+        _copy_fixtures(FIXTURES_DIR, tmp_path)
+
+        removed_row = None
+        def _remove_last(rows):
+            nonlocal removed_row
+            removed_row = rows.pop()
+            return rows
+
+        _load_and_save(tmp_path / 'dataset_object.json', _remove_last)
+
+        result = compare_snapshot(session, tmp_path, models=reflected)
+        diff = result.tables['dataset_object']
+
+        assert not result.is_identical
+        assert not diff.is_match
+        assert len(diff.added) == 1
+        assert diff.added[0]['object'] == removed_row['object']
+
+    def test_added_row_count(
+        self,
+        session: Session,
+        reflected: ReflectedModels,
+        tmp_path: Path,
+    ) -> None:
+        """Row count reflects the extra DB row."""
+        _copy_fixtures(FIXTURES_DIR, tmp_path)
+        _load_and_save(
+            tmp_path / 'dataset_object.json',
+            lambda rows: rows[:-1],
+        )
+
+        result = compare_snapshot(session, tmp_path, models=reflected)
+        diff = result.tables['dataset_object']
+        assert diff.row_count_expected == 120
+        assert diff.row_count_actual == 121
+
+
+# ---------------------------------------------------------------------------
+# Test: Comparison utility -- detects removed rows
+# ---------------------------------------------------------------------------
+
+
+class TestComparisonDetectsRemovedRows:
+    """VAL-SNAP-008: Detects rows in fixture not present in DB.
+
+    To simulate the DB missing a row, we add a fake row to the fixture
+    copy.  The comparison should report it as 'removed' (present in
+    fixture but absent from the DB).
+    """
+
+    def test_removed_row_detected(
+        self,
+        session: Session,
+        reflected: ReflectedModels,
+        tmp_path: Path,
+    ) -> None:
+        """Add fake dataset_object row to fixture → detected as removed."""
+        _copy_fixtures(FIXTURES_DIR, tmp_path)
+        fake_row = {
+            'dataset': F006_UUID,
+            'object': '00000000-0000-0000-0000-000000000000',
+        }
+
+        _load_and_save(
+            tmp_path / 'dataset_object.json',
+            lambda rows: rows + [fake_row],
+        )
+
+        result = compare_snapshot(session, tmp_path, models=reflected)
+        diff = result.tables['dataset_object']
+
+        assert not result.is_identical
+        assert not diff.is_match
+        assert len(diff.removed) == 1
+        assert diff.removed[0]['object'] == fake_row['object']
+
+    def test_removed_row_count(
+        self,
+        session: Session,
+        reflected: ReflectedModels,
+        tmp_path: Path,
+    ) -> None:
+        """Row count reflects the extra fixture row."""
+        fake_row = {
+            'dataset': F006_UUID,
+            'object': '00000000-0000-0000-0000-000000000000',
+        }
+        _copy_fixtures(FIXTURES_DIR, tmp_path)
+        _load_and_save(
+            tmp_path / 'dataset_object.json',
+            lambda rows: rows + [fake_row],
+        )
+
+        result = compare_snapshot(session, tmp_path, models=reflected)
+        diff = result.tables['dataset_object']
+        assert diff.row_count_expected == 122
+        assert diff.row_count_actual == 121
+
+
+# ---------------------------------------------------------------------------
+# Test: Comparison utility -- detects modified values
+# ---------------------------------------------------------------------------
+
+
+class TestComparisonDetectsModifiedValues:
+    """VAL-SNAP-008: Detects rows with matching PK but different values.
+
+    We change a non-PK value in the fixture copy.  The comparison should
+    report the row as 'modified' with old/new value details.
+    """
+
+    def test_modified_value_detected(
+        self,
+        session: Session,
+        reflected: ReflectedModels,
+        tmp_path: Path,
+    ) -> None:
+        """Change id_type in objects fixture → detected as modified."""
+        _copy_fixtures(FIXTURES_DIR, tmp_path)
+
+        original_value = None
+        def _change_first_id_type(rows):
+            nonlocal original_value
+            original_value = rows[0]['id_type']
+            rows[0]['id_type'] = 'MODIFIED_VALUE'
+            return rows
+
+        _load_and_save(tmp_path / 'objects.json', _change_first_id_type)
+
+        result = compare_snapshot(session, tmp_path, models=reflected)
+        diff = result.tables['objects']
+
+        assert not result.is_identical
+        assert not diff.is_match
+        assert len(diff.modified) == 1
+
+        entry = diff.modified[0]
+        assert 'id_type' in entry['changes']
+        assert entry['changes']['id_type']['expected'] == 'MODIFIED_VALUE'
+        assert entry['changes']['id_type']['actual'] == original_value
+
+    def test_modified_preserves_pk(
+        self,
+        session: Session,
+        reflected: ReflectedModels,
+        tmp_path: Path,
+    ) -> None:
+        """Modified entry includes the PK of the changed row."""
+        _copy_fixtures(FIXTURES_DIR, tmp_path)
+        obj_path = tmp_path / 'objects.json'
+        with open(obj_path) as f:
+            rows = json.load(f)
+        expected_pk = rows[0]['id']
+        rows[0]['id_type'] = 'MODIFIED_VALUE'
+        with open(obj_path, 'w') as f:
+            json.dump(rows, f, sort_keys=True, default=str, indent=2)
+            f.write('\n')
+
+        result = compare_snapshot(session, tmp_path, models=reflected)
+        diff = result.tables['objects']
+        assert diff.modified[0]['pk'] == {'id': expected_pk}
+
+
+# ---------------------------------------------------------------------------
+# Test: Comparison utility -- detects count mismatches
+# ---------------------------------------------------------------------------
+
+
+class TestComparisonDetectsCountMismatch:
+    """VAL-SNAP-008: Detects count mismatches in summary fixtures."""
+
+    def test_total_count_mismatch(
+        self,
+        session: Session,
+        reflected: ReflectedModels,
+        tmp_path: Path,
+    ) -> None:
+        """Change total in values_inst_summary → detected as mismatch."""
+        _copy_fixtures(FIXTURES_DIR, tmp_path)
+        _load_and_save(
+            tmp_path / 'values_inst_summary.json',
+            lambda data: {**data, 'total': data['total'] + 999},
+        )
+
+        result = compare_snapshot(session, tmp_path, models=reflected)
+        diff = result.tables['values_inst_summary']
+
+        assert not result.is_identical
+        assert not diff.is_match
+        assert diff.count_expected == 609_390 + 999
+        assert diff.count_actual == 609_390
+
+    def test_breakdown_key_mismatch(
+        self,
+        session: Session,
+        reflected: ReflectedModels,
+        tmp_path: Path,
+    ) -> None:
+        """Change a breakdown value → detected as breakdown_changed."""
+        _copy_fixtures(FIXTURES_DIR, tmp_path)
+
+        def _tweak_breakdown(data):
+            data['breakdown']['subject|human'] = 999
+            return data
+
+        _load_and_save(
+            tmp_path / 'values_inst_summary.json',
+            _tweak_breakdown,
+        )
+
+        result = compare_snapshot(session, tmp_path, models=reflected)
+        diff = result.tables['values_inst_summary']
+
+        assert not diff.is_match
+        assert 'subject|human' in diff.breakdown_changed
+        assert diff.breakdown_changed['subject|human'] == {
+            'expected': 999,
+            'actual': 1,
+        }
+
+    def test_extra_breakdown_key_detected(
+        self,
+        session: Session,
+        reflected: ReflectedModels,
+        tmp_path: Path,
+    ) -> None:
+        """Add an extra breakdown key to fixture → detected as removed."""
+        _copy_fixtures(FIXTURES_DIR, tmp_path)
+
+        def _add_fake_key(data):
+            data['breakdown']['fake|nonexistent'] = 42
+            return data
+
+        _load_and_save(
+            tmp_path / 'values_inst_summary.json',
+            _add_fake_key,
+        )
+
+        result = compare_snapshot(session, tmp_path, models=reflected)
+        diff = result.tables['values_inst_summary']
+
+        assert not diff.is_match
+        assert 'fake|nonexistent' in diff.breakdown_removed
+        assert diff.breakdown_removed['fake|nonexistent'] == 42
