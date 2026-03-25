@@ -1,0 +1,12 @@
+{
+  "breakdown": {
+    "below|fascicle-cross-section": 428,
+    "below|fiber-cross-section": 608811,
+    "sample|nerve": 2,
+    "sample|nerve-cross-section": 27,
+    "sample|nerve-volume": 61,
+    "site|extruded-plane": 60,
+    "subject|human": 1
+  },
+  "total": 609390
+}
