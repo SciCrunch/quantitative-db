@@ -425,6 +425,7 @@ class TableDiff:
     table: str
     fixture_type: str
     is_match: bool = True
+    missing: bool = False
     # Summary fields
     count_expected: int | None = None
     count_actual: int | None = None
@@ -548,7 +549,8 @@ def _compare_full_rows(table_name, fixture_rows, db_rows, pk_cols):
             pk_dict = {col: fix_row[col] for col in pk_cols}
             diff.modified.append({'pk': pk_dict, 'changes': changes})
 
-    if diff.added or diff.removed or diff.modified:
+    if (diff.added or diff.removed or diff.modified
+            or diff.row_count_expected != diff.row_count_actual):
         diff.is_match = False
 
     return diff
@@ -582,6 +584,12 @@ def compare_snapshot(session, fixtures_dir, models=None):
     for name, extract_fn in _SUMMARY_TABLES.items():
         fixture_path = fixtures_dir / f'{name}.json'
         if not fixture_path.exists():
+            diff = TableDiff(
+                table=name, fixture_type='summary',
+                is_match=False, missing=True,
+            )
+            result.tables[name] = diff
+            result.is_identical = False
             continue
         with open(fixture_path) as f:
             fixture_data = json.load(f)
@@ -595,6 +603,12 @@ def compare_snapshot(session, fixtures_dir, models=None):
     for name, (extract_fn, pk_cols) in _FULL_ROW_TABLES.items():
         fixture_path = fixtures_dir / f'{name}.json'
         if not fixture_path.exists():
+            diff = TableDiff(
+                table=name, fixture_type='full_rows',
+                is_match=False, missing=True,
+            )
+            result.tables[name] = diff
+            result.is_identical = False
             continue
         with open(fixture_path) as f:
             fixture_rows = json.load(f)

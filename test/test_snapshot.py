@@ -3,20 +3,19 @@
 Verifies that:
   - Fixture files exist for all expected tables
   - Summary counts match production expectations
-  - Full-row fixtures have correct row counts
+  - Full-row fixtures have correct row counts and exact field-by-field equality
   - Extraction is deterministic (two runs produce identical files)
-  - Comparison utility detects differences
+  - Comparison utility detects differences (added, removed, modified, missing files)
 
 Requires:
     - PostgreSQL running locally (trust auth for postgres user)
-    - Production dump restored via rebuild_database fixture
+    - Production dump restored via rebuild_database fixture (shared from conftest.py)
 """
 from __future__ import annotations
 
 import hashlib
 import json
 import shutil
-import subprocess
 import tempfile
 from pathlib import Path
 from typing import Generator
@@ -25,122 +24,9 @@ import pytest
 from sqlalchemy import create_engine, event, func, select
 from sqlalchemy.orm import Session
 
-from quantdb.config import auth  # noqa: F401 (used in ensure_database)
 from quantdb.models import ReflectedModels, reflect_models
 from quantdb.snapshot import F006_UUID, compare_snapshot, extract_f006_snapshot
 from quantdb.utils import dbUri
-
-
-# ---------------------------------------------------------------------------
-# ensure_database fixture (idempotent; skips rebuild if data present)
-# ---------------------------------------------------------------------------
-
-_SQL_DIR = Path(__file__).resolve().parent.parent / 'sql'
-_PROD_DUMP = Path(__file__).resolve().parent.parent / 'resources' / 'quantdb_production_template.dump'
-_PG_RESTORE = '/opt/homebrew/opt/postgresql@16/bin/pg_restore'
-
-
-def _psql(sql=None, *, file=None, database='postgres', host='localhost',
-           port=5432, extra_vars=None):
-    cmd = [
-        'psql', '-U', 'postgres',
-        '-h', host, '-p', str(port),
-        '-d', database,
-        '-v', 'ON_ERROR_STOP=on',
-    ]
-    if extra_vars:
-        for k, v in extra_vars.items():
-            cmd.extend(['-v', f'{k}={v}'])
-    if file is not None:
-        cmd.extend(['-f', str(file)])
-    elif sql is not None:
-        cmd.extend(['-c', sql])
-    return subprocess.run(cmd, check=True, capture_output=True, text=True)
-
-
-def _database_has_f006_data():
-    """Check if quantdb_test already has f006 production data."""
-    try:
-        result = subprocess.run(
-            ['psql', '-U', 'postgres', '-h', 'localhost', '-p', '5432',
-             '-d', 'quantdb_test', '-t', '-A', '-c',
-             "SELECT count(*) FROM quantdb.values_inst"
-             " WHERE dataset = '2a3d01c0-39d3-464a-8746-54c9d67ebe0f'"],
-            capture_output=True, text=True,
-        )
-        if result.returncode == 0:
-            count = int(result.stdout.strip())
-            return count == 609_390
-    except (ValueError, subprocess.SubprocessError):
-        pass
-    return False
-
-
-@pytest.fixture(scope='session')
-def ensure_database():
-    """Ensure quantdb_test has production f006 data; rebuild only if needed.
-
-    When the full test suite runs, test_ingest_f006.py's rebuild_database
-    fixture will have already rebuilt the database.  This fixture checks
-    first and skips the rebuild in that case, avoiding conflicts.
-    """
-    if _database_has_f006_data():
-        return
-
-    test_db = auth.get('test-db-database')
-    assert test_db == 'quantdb_test'
-
-    _psql(file=_SQL_DIR / 'postgres.sql', extra_vars={
-        'test_database': test_db, 'database': test_db,
-    })
-    _psql(sql='GRANT "quantdb-test-admin" TO CURRENT_USER;')
-    _psql(sql=f'DROP DATABASE IF EXISTS {test_db};')
-    _psql(sql=(
-        f'CREATE DATABASE {test_db}'
-        f"  WITH OWNER = 'quantdb-test-admin'"
-        f"  TEMPLATE template0"
-        f"  ENCODING = 'UTF8'"
-        f"  LC_COLLATE = 'C'"
-        f"  LC_CTYPE = 'C'"
-        f"  CONNECTION LIMIT = -1;"
-    ))
-    _psql(sql='REVOKE "quantdb-test-admin" FROM CURRENT_USER;')
-    _psql(sql='ALTER ROLE postgres SET search_path = quantdb, public;')
-    _psql(file=_SQL_DIR / 'schemas.sql', database=test_db)
-    _psql(file=_SQL_DIR / 'tables.sql', database=test_db)
-    _psql(
-        file=_SQL_DIR / 'permissions.sql', database=test_db,
-        extra_vars={'database': test_db, 'perm_user': 'quantdb-test-user'},
-    )
-    _psql(sql=(
-        'ALTER TABLE quantdb.values_cat'
-        '  DROP CONSTRAINT IF EXISTS'
-        '  values_cat_object_instance_desc_cat_key;'
-        ' ALTER TABLE quantdb.values_quant'
-        '  DROP CONSTRAINT IF EXISTS'
-        '  values_quant_object_instance_desc_quant_key;'
-    ), database=test_db)
-    subprocess.run([
-        _PG_RESTORE,
-        '--data-only', '--schema=quantdb',
-        '--no-owner', '--no-privileges', '--disable-triggers',
-        '-U', 'postgres', '-h', 'localhost', '-p', '5432',
-        '-d', test_db, str(_PROD_DUMP),
-    ], check=True, capture_output=True, text=True)
-    _psql(sql=(
-        'DELETE FROM quantdb.values_cat a USING quantdb.values_cat b'
-        '  WHERE a.id > b.id AND a.object = b.object'
-        '  AND a.instance = b.instance AND a.desc_cat = b.desc_cat;'
-        ' DELETE FROM quantdb.values_quant a USING quantdb.values_quant b'
-        '  WHERE a.id > b.id AND a.object = b.object'
-        '  AND a.instance = b.instance AND a.desc_quant = b.desc_quant;'
-        ' ALTER TABLE quantdb.values_cat'
-        '  ADD CONSTRAINT values_cat_object_instance_desc_cat_key'
-        '  UNIQUE (object, instance, desc_cat);'
-        ' ALTER TABLE quantdb.values_quant'
-        '  ADD CONSTRAINT values_quant_object_instance_desc_quant_key'
-        '  UNIQUE (object, instance, desc_quant);'
-    ), database=test_db)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -170,7 +56,7 @@ EXPECTED_FILES = [
 
 
 @pytest.fixture(scope='session')
-def reflected(ensure_database: None) -> Generator[ReflectedModels, None, None]:
+def reflected(rebuild_database: None) -> Generator[ReflectedModels, None, None]:
     """Reflect the quantdb_test schema once per test session."""
     engine = create_engine(
         dbUri(
@@ -458,6 +344,136 @@ class TestSmallTableFixtures:
             for r in rows
         ]
         fixture = _load_fixture('objects_internal.json')
+        assert fixture == db_data
+
+    def test_objects_matches_db(
+        self,
+        session: Session,
+        reflected: ReflectedModels,
+    ) -> None:
+        """Full-row comparison of objects fixture against live DB."""
+        Obj = reflected.Objects
+        DO = reflected.DatasetObject
+
+        linked_stmt = select(DO.object).where(DO.dataset == F006_UUID)
+        linked = {row[0] for row in session.execute(linked_stmt).all()}
+        all_ids = linked | {F006_UUID}
+
+        stmt = (
+            select(Obj.id, Obj.id_type, Obj.id_file, Obj.id_internal)
+            .where(Obj.id.in_(all_ids))
+            .order_by(Obj.id)
+        )
+        rows = session.execute(stmt).all()
+        db_data = [
+            {
+                'id': str(r[0]),
+                'id_type': str(r[1]) if r[1] is not None else None,
+                'id_file': r[2],
+                'id_internal': str(r[3]) if r[3] is not None else None,
+            }
+            for r in rows
+        ]
+        fixture = _load_fixture('objects.json')
+        assert fixture == db_data
+
+    def test_obj_desc_inst_matches_db(
+        self,
+        session: Session,
+        reflected: ReflectedModels,
+    ) -> None:
+        """Full-row comparison of obj_desc_inst fixture against live DB."""
+        ODI = reflected.ObjDescInst
+        DO = reflected.DatasetObject
+
+        object_uuids_stmt = select(DO.object).where(DO.dataset == F006_UUID)
+        stmt = (
+            select(
+                ODI.object, ODI.desc_inst,
+                ODI.addr_field, ODI.addr_desc_inst, ODI.expect,
+            )
+            .where(ODI.object.in_(object_uuids_stmt))
+            .order_by(ODI.object, ODI.desc_inst)
+        )
+        rows = session.execute(stmt).all()
+        db_data = [
+            {
+                'object': str(r[0]),
+                'desc_inst': r[1],
+                'addr_field': r[2],
+                'addr_desc_inst': r[3],
+                'expect': r[4],
+            }
+            for r in rows
+        ]
+        fixture = _load_fixture('obj_desc_inst.json')
+        assert fixture == db_data
+
+    def test_obj_desc_quant_matches_db(
+        self,
+        session: Session,
+        reflected: ReflectedModels,
+    ) -> None:
+        """Full-row comparison of obj_desc_quant fixture against live DB."""
+        ODQ = reflected.ObjDescQuant
+        DO = reflected.DatasetObject
+
+        object_uuids_stmt = select(DO.object).where(DO.dataset == F006_UUID)
+        stmt = (
+            select(
+                ODQ.object, ODQ.desc_quant,
+                ODQ.addr_field, ODQ.addr_unit, ODQ.addr_aspect,
+                ODQ.addr_desc_inst, ODQ.expect,
+            )
+            .where(ODQ.object.in_(object_uuids_stmt))
+            .order_by(ODQ.object, ODQ.desc_quant)
+        )
+        rows = session.execute(stmt).all()
+        db_data = [
+            {
+                'object': str(r[0]),
+                'desc_quant': r[1],
+                'addr_field': r[2],
+                'addr_unit': r[3],
+                'addr_aspect': r[4],
+                'addr_desc_inst': r[5],
+                'expect': r[6],
+            }
+            for r in rows
+        ]
+        fixture = _load_fixture('obj_desc_quant.json')
+        assert fixture == db_data
+
+    def test_obj_desc_cat_matches_db(
+        self,
+        session: Session,
+        reflected: ReflectedModels,
+    ) -> None:
+        """Full-row comparison of obj_desc_cat fixture against live DB."""
+        ODC = reflected.ObjDescCat
+        DO = reflected.DatasetObject
+
+        object_uuids_stmt = select(DO.object).where(DO.dataset == F006_UUID)
+        stmt = (
+            select(
+                ODC.object, ODC.desc_cat,
+                ODC.addr_field, ODC.addr_desc_inst, ODC.expect,
+            )
+            .where(ODC.object.in_(object_uuids_stmt))
+            .order_by(ODC.object, ODC.desc_cat)
+        )
+        rows = session.execute(stmt).all()
+        db_data = [
+            {
+                'object': str(r[0]),
+                'desc_cat': r[1],
+                'addr_field': r[2],
+                'addr_desc_inst': r[3],
+                'expect': r[4],
+            }
+            for r in rows
+        ]
+        fixture = _load_fixture('obj_desc_cat.json')
         assert fixture == db_data
 
 
@@ -842,3 +858,116 @@ class TestComparisonDetectsCountMismatch:
         assert not diff.is_match
         assert 'fake|nonexistent' in diff.breakdown_removed
         assert diff.breakdown_removed['fake|nonexistent'] == 42
+
+
+# ---------------------------------------------------------------------------
+# Test: Comparison utility -- detects missing fixture files
+# ---------------------------------------------------------------------------
+
+
+class TestComparisonDetectsMissingFiles:
+    """compare_snapshot() reports missing fixture files as mismatches."""
+
+    def test_missing_summary_file_is_mismatch(
+        self,
+        session: Session,
+        reflected: ReflectedModels,
+        tmp_path: Path,
+    ) -> None:
+        """Missing values_inst_summary.json → is_match=False, missing=True."""
+        _copy_fixtures(FIXTURES_DIR, tmp_path)
+        (tmp_path / 'values_inst_summary.json').unlink()
+
+        result = compare_snapshot(session, tmp_path, models=reflected)
+        diff = result.tables['values_inst_summary']
+
+        assert not result.is_identical
+        assert not diff.is_match
+        assert diff.missing
+
+    def test_missing_full_row_file_is_mismatch(
+        self,
+        session: Session,
+        reflected: ReflectedModels,
+        tmp_path: Path,
+    ) -> None:
+        """Missing dataset_object.json → is_match=False, missing=True."""
+        _copy_fixtures(FIXTURES_DIR, tmp_path)
+        (tmp_path / 'dataset_object.json').unlink()
+
+        result = compare_snapshot(session, tmp_path, models=reflected)
+        diff = result.tables['dataset_object']
+
+        assert not result.is_identical
+        assert not diff.is_match
+        assert diff.missing
+
+    def test_missing_file_still_in_tables_dict(
+        self,
+        session: Session,
+        reflected: ReflectedModels,
+        tmp_path: Path,
+    ) -> None:
+        """Missing file still produces a table entry (not silently skipped)."""
+        _copy_fixtures(FIXTURES_DIR, tmp_path)
+        (tmp_path / 'objects.json').unlink()
+
+        result = compare_snapshot(session, tmp_path, models=reflected)
+        assert 'objects' in result.tables
+        assert result.tables['objects'].missing
+
+    def test_all_files_missing_reports_all_mismatches(
+        self,
+        session: Session,
+        reflected: ReflectedModels,
+        tmp_path: Path,
+    ) -> None:
+        """Empty fixture dir → all 11 tables reported as missing mismatches."""
+        result = compare_snapshot(session, tmp_path, models=reflected)
+        assert not result.is_identical
+        assert len(result.tables) == 11
+        for name, diff in result.tables.items():
+            assert not diff.is_match, f'{name} should be mismatch'
+            assert diff.missing, f'{name} should be marked missing'
+
+
+# ---------------------------------------------------------------------------
+# Test: Row count mismatch forces is_match=False
+# ---------------------------------------------------------------------------
+
+
+class TestRowCountMismatchForcesFailure:
+    """_compare_full_rows() forces is_match=False when counts differ.
+
+    Even if PK dedup leaves the added/removed/modified buckets empty,
+    a row count mismatch must still set is_match=False.
+    """
+
+    def test_duplicate_pk_row_count_mismatch(
+        self,
+        session: Session,
+        reflected: ReflectedModels,
+        tmp_path: Path,
+    ) -> None:
+        """Duplicate PK in fixture creates count mismatch despite empty diffs."""
+        _copy_fixtures(FIXTURES_DIR, tmp_path)
+
+        def _duplicate_first_row(rows):
+            rows.append(rows[0].copy())
+            return rows
+
+        _load_and_save(
+            tmp_path / 'dataset_object.json',
+            _duplicate_first_row,
+        )
+
+        result = compare_snapshot(session, tmp_path, models=reflected)
+        diff = result.tables['dataset_object']
+
+        # The duplicate PK means fixture has 122 rows but DB has 121,
+        # yet after PK dedup the added/removed/modified may be empty.
+        assert diff.row_count_expected == 122
+        assert diff.row_count_actual == 121
+        assert not diff.is_match, (
+            '_compare_full_rows must force is_match=False when row counts differ'
+        )
