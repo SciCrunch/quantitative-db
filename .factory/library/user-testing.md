@@ -33,6 +33,8 @@ For the `gold-standard-snapshots` milestone, the effective concurrency is **1** 
 
 For the `extraction-layer` milestone, the effective concurrency is also **1** for the current assertion set. The user-testing flow only needs one targeted pytest selection covering cache-backed entity extraction and JPX path extraction assertions, so extra parallel validators would add overhead without improving coverage.
 
+For the `deep-upsert-ingest` milestone, the effective concurrency is **1** as well. The real validation flow mutates the shared `quantdb_test` singleton database through an extract -> delete -> re-ingest cycle for dataset `f006`, so concurrent validators would interfere with each other's baseline and post-ingest assertions.
+
 ## Test Markers
 
 - Default: runs all non-AWS tests
@@ -44,6 +46,7 @@ For the `extraction-layer` milestone, the effective concurrency is also **1** fo
 - `test/test_api.py` must always be ignored (CROSS JOIN LATERAL bug)
 - 16 SQLAlchemy automap warnings are cosmetic and expected
 - `test_ingest_f006.py::rebuild_database` fixture takes ~30s for pg_restore of 33MB dump
+- `test/test_ingest_v2.py` currently emits `PytestUnknownMarkWarning` for `@pytest.mark.slow`; the warning is harmless for validation runs but expected until the mark is registered
 
 ## Flow Validator Guidance: cli-pytest
 
@@ -52,4 +55,5 @@ For the `extraction-layer` milestone, the effective concurrency is also **1** fo
 - Ignore `test/test_api.py` on every pytest invocation.
 - Treat `quantdb_test` on localhost as a shared singleton resource. Do not run milestone pytest flows concurrently against it.
 - For `extraction-layer`, validate only the assertions still fulfilled by the completed milestone features: `VAL-EXT-001`, `VAL-EXT-002`, `VAL-EXT-005`, and `VAL-EXT-006`. `VAL-EXT-003` and `VAL-EXT-004` were deferred by the orchestrator to the ingest milestone because the cached cassava metadata does not contain the required CSV entries.
+- For `deep-upsert-ingest`, start with `test/test_ingest_v2.py::TestComparisonProof` on the real database surface, then add read-only SQL/Python spot checks if needed to verify user-visible contract details that the test selection may not fully prove (for example exact value preservation or `obj_desc_*` metadata fidelity).
 - Keep writes inside the validator's assigned report path under `.factory/validation/<milestone>/user-testing/flows/` and evidence path under the mission directory.
