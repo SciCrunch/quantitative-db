@@ -11,7 +11,7 @@ Requires:
 """
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Generator
 
 import pytest
@@ -146,6 +146,103 @@ def _count_f006(session, models):
     ).scalar_one()
 
     return counts
+
+
+def _sample_values_quant(session, limit=100):
+    """Capture a deterministic sample of *limit* values_quant rows.
+
+    Ordered by natural keys (instance id_formal, desc_quant label,
+    object UUID) so the result is stable regardless of auto-generated
+    integer IDs.  All values are cast to text in SQL to avoid
+    float/Decimal precision issues during comparison.
+    """
+    stmt = sql_text(
+        """
+        SELECT CAST(vq.value AS text) AS value_str,
+               CAST(vq.value_blob AS text) AS value_blob_str,
+               vi.id_formal AS instance_id_formal,
+               dq.label AS desc_quant_label,
+               CAST(vq.object AS text) AS object_uuid
+        FROM quantdb.values_quant vq
+        JOIN quantdb.values_inst vi ON vq.instance = vi.id
+        JOIN quantdb.descriptors_quant dq ON vq.desc_quant = dq.id
+        WHERE vq.object IN (
+            SELECT object FROM quantdb.dataset_object
+            WHERE dataset = :f006_uuid
+        )
+        ORDER BY vi.id_formal, dq.label, CAST(vq.object AS text)
+        LIMIT :lim
+    """
+    )
+    rows = session.execute(stmt, {'f006_uuid': F006_UUID, 'lim': limit}).all()
+    return [
+        {
+            'value': r[0],
+            'value_blob': r[1],
+            'instance_id_formal': r[2],
+            'desc_quant_label': r[3],
+            'object_uuid': r[4],
+        }
+        for r in rows
+    ]
+
+
+def _sample_values_cat(session, limit=100):
+    """Capture a deterministic sample of *limit* values_cat rows.
+
+    Ordered by natural keys (instance id_formal, desc_cat label,
+    object UUID) so the result is stable regardless of auto-generated
+    integer IDs.
+    """
+    stmt = sql_text(
+        """
+        SELECT vc.value_open,
+               ct.label AS value_controlled_label,
+               vi.id_formal AS instance_id_formal,
+               dc.label AS desc_cat_label,
+               CAST(vc.object AS text) AS object_uuid
+        FROM quantdb.values_cat vc
+        JOIN quantdb.values_inst vi ON vc.instance = vi.id
+        JOIN quantdb.descriptors_cat dc ON vc.desc_cat = dc.id
+        LEFT JOIN quantdb.controlled_terms ct
+            ON vc.value_controlled = ct.id
+        WHERE vc.object IN (
+            SELECT object FROM quantdb.dataset_object
+            WHERE dataset = :f006_uuid
+        )
+        ORDER BY vi.id_formal, dc.label, CAST(vc.object AS text)
+        LIMIT :lim
+    """
+    )
+    rows = session.execute(stmt, {'f006_uuid': F006_UUID, 'lim': limit}).all()
+    return [
+        {
+            'value_open': r[0],
+            'value_controlled_label': r[1],
+            'instance_id_formal': r[2],
+            'desc_cat_label': r[3],
+            'object_uuid': r[4],
+        }
+        for r in rows
+    ]
+
+
+def _normalize_numeric_str(s):
+    """Normalize a numeric string so ``'2'`` and ``'2.0'`` compare equal.
+
+    The production dump may store integer values (``2``) while the v2
+    pipeline round-trips them through Python ``float`` and stores
+    ``2.0``.  Both are semantically identical.  ``Decimal.normalize()``
+    strips trailing zeros, so ``Decimal('2.0').normalize()`` → ``'2'``.
+
+    Non-numeric strings (e.g. complex JSON) pass through unchanged.
+    """
+    if s is None:
+        return None
+    try:
+        return str(Decimal(s).normalize())
+    except InvalidOperation:
+        return s
 
 
 # ---------------------------------------------------------------------------
@@ -345,6 +442,10 @@ class TestIngestF006:
 # Module-scoped fixture: extract -> delete -> ingest ONCE
 # ---------------------------------------------------------------------------
 
+# Module-level container for baseline value samples captured before
+# delete so that post-ingest spot-check tests can compare against them.
+_baseline_samples: dict = {}
+
 
 @pytest.fixture(scope='module')
 def f006_ingested_session(
@@ -354,11 +455,19 @@ def f006_ingested_session(
 
     Shares the resulting session across all ``TestComparisonProof``
     tests so the ~8-minute pipeline is not repeated per assertion.
+
+    Before deleting, captures ~100 values_quant and ~100 values_cat
+    baseline rows (ordered by natural keys) into ``_baseline_samples``
+    for VAL-ING-013 spot-check comparison.
     """
     sess = reflected.Session()
 
     # Extract f006 data while production dump is present
     data_dicts = extract_f006_from_db(sess, reflected)
+
+    # Capture baseline value samples BEFORE delete (for VAL-ING-013)
+    _baseline_samples['values_quant'] = _sample_values_quant(sess)
+    _baseline_samples['values_cat'] = _sample_values_cat(sess)
 
     # Delete all f006 data (FK-safe child-first)
     delete_f006_data(sess, reflected)
@@ -525,71 +634,72 @@ class TestComparisonProof:
     # ---- Spot-check values (VAL-ING-013) ----
 
     def test_spot_check_values_quant(self, f006_ingested_session, reflected):
-        """VAL-ING-013: fiber values_quant have valid numeric values."""
-        VQ = reflected.ValuesQuant
-        DQ = reflected.DescriptorsQuant
-        DI = reflected.DescriptorsInst
-        VI = reflected.ValuesInst
-        DO = reflected.DatasetObject
+        """VAL-ING-013: ~100 values_quant rows match pre-delete baseline.
 
-        f006_objects = select(DO.object).where(DO.dataset == F006_UUID)
+        Compares value (as text), value_blob (as text), desc_quant
+        label, and object UUID field-by-field for a deterministic
+        sample ordered by natural keys.
+        """
+        baseline = _baseline_samples['values_quant']
+        assert len(baseline) == 100, f'Expected 100 baseline quant rows, got {len(baseline)}'
 
-        # Pick a small sample of fiber quant values and verify numerics
-        stmt = (
-            select(VQ.value, DQ.label, VI.id_formal)
-            .join(DQ, VQ.desc_quant == DQ.id)
-            .join(VI, VQ.instance == VI.id)
-            .join(DI, VI.desc_inst == DI.id)
-            .where(VQ.object.in_(f006_objects))
-            .where(DI.label == 'fiber-cross-section')
-            .where(
-                DQ.label.in_(
-                    [
-                        'fiber cross section area um2',
-                        'fiber cross section diameter um',
-                        'fiber cross section diameter um max',
-                        'fiber cross section diameter um min',
-                    ]
-                )
+        # Re-query using the same deterministic ordering after re-ingest
+        post_ingest = _sample_values_quant(f006_ingested_session)
+        assert len(post_ingest) == 100, f'Expected 100 post-ingest quant rows, got {len(post_ingest)}'
+
+        # Field-by-field comparison (all values compared as strings)
+        for i, (bl, pi) in enumerate(zip(baseline, post_ingest)):
+            key = f'{bl["instance_id_formal"]}' f'/{bl["desc_quant_label"]}' f'/{bl["object_uuid"][:8]}'
+            assert bl['instance_id_formal'] == pi['instance_id_formal'], (
+                f'Row {i} key mismatch: ' f'{bl["instance_id_formal"]!r} != ' f'{pi["instance_id_formal"]!r}'
             )
-            .order_by(VI.id_formal, DQ.label)
-            .limit(20)
-        )
-        rows = f006_ingested_session.execute(stmt).all()
-        assert len(rows) == 20, f'Expected 20 spot-check rows, got {len(rows)}'
-        for value, desc_label, id_formal in rows:
-            assert value is not None, f'{id_formal}/{desc_label}: value should not be None'
-            assert isinstance(value, (int, float, Decimal)), (
-                f'{id_formal}/{desc_label}: value should be numeric, ' f'got {type(value)}'
+            assert bl['desc_quant_label'] == pi['desc_quant_label'], (
+                f'Row {i} desc_quant mismatch: ' f'{bl["desc_quant_label"]!r} != ' f'{pi["desc_quant_label"]!r}'
             )
-            assert value >= 0, f'{id_formal}/{desc_label}: value should be >= 0, ' f'got {value}'
+            assert bl['object_uuid'] == pi['object_uuid'], (
+                f'Row {i} object mismatch: ' f'{bl["object_uuid"]!r} != {pi["object_uuid"]!r}'
+            )
+            assert _normalize_numeric_str(bl['value']) == _normalize_numeric_str(pi['value']), (
+                f'Row {i} ({key}): value mismatch: ' f'{bl["value"]!r} != {pi["value"]!r}'
+            )
+            assert _normalize_numeric_str(bl['value_blob']) == _normalize_numeric_str(pi['value_blob']), (
+                f'Row {i} ({key}): value_blob mismatch: ' f'{bl["value_blob"]!r} != {pi["value_blob"]!r}'
+            )
 
     def test_spot_check_values_cat(self, f006_ingested_session, reflected):
-        """VAL-ING-013: fiber values_cat have valid categorical values."""
-        VC = reflected.ValuesCat
-        DC = reflected.DescriptorsCat
-        CT = reflected.ControlledTerms
-        VI = reflected.ValuesInst
-        DO = reflected.DatasetObject
+        """VAL-ING-013: ~100 values_cat rows match pre-delete baseline.
 
-        f006_objects = select(DO.object).where(DO.dataset == F006_UUID)
+        Compares value_open, value_controlled label, desc_cat label,
+        and object UUID field-by-field for a deterministic sample
+        ordered by natural keys.
+        """
+        baseline = _baseline_samples['values_cat']
+        assert len(baseline) == 100, f'Expected 100 baseline cat rows, got {len(baseline)}'
 
-        # Verify hasAxonFiberType values are myelinated or unmyelinated
-        stmt = (
-            select(VC.value_open, CT.label, VI.id_formal)
-            .select_from(VC)
-            .join(DC, VC.desc_cat == DC.id)
-            .join(CT, VC.value_controlled == CT.id)
-            .join(VI, VC.instance == VI.id)
-            .where(VC.object.in_(f006_objects))
-            .where(DC.label == 'hasAxonFiberType')
-            .order_by(VI.id_formal)
-            .limit(10)
-        )
-        rows = f006_ingested_session.execute(stmt).all()
-        assert len(rows) == 10, f'Expected 10 spot-check rows, got {len(rows)}'
-        for value_open, ct_label, id_formal in rows:
-            assert ct_label in ('myelinated', 'unmyelinated'), f'{id_formal}: unexpected axon fiber type {ct_label!r}'
+        # Re-query using the same deterministic ordering after re-ingest
+        post_ingest = _sample_values_cat(f006_ingested_session)
+        assert len(post_ingest) == 100, f'Expected 100 post-ingest cat rows, got {len(post_ingest)}'
+
+        # Field-by-field comparison
+        for i, (bl, pi) in enumerate(zip(baseline, post_ingest)):
+            key = f'{bl["instance_id_formal"]}' f'/{bl["desc_cat_label"]}' f'/{bl["object_uuid"][:8]}'
+            assert bl['instance_id_formal'] == pi['instance_id_formal'], (
+                f'Row {i} key mismatch: ' f'{bl["instance_id_formal"]!r} != ' f'{pi["instance_id_formal"]!r}'
+            )
+            assert bl['desc_cat_label'] == pi['desc_cat_label'], (
+                f'Row {i} desc_cat mismatch: ' f'{bl["desc_cat_label"]!r} != ' f'{pi["desc_cat_label"]!r}'
+            )
+            assert bl['object_uuid'] == pi['object_uuid'], (
+                f'Row {i} object mismatch: ' f'{bl["object_uuid"]!r} != {pi["object_uuid"]!r}'
+            )
+            assert bl['value_open'] == pi['value_open'], (
+                f'Row {i} ({key}): value_open mismatch: ' f'{bl["value_open"]!r} != {pi["value_open"]!r}'
+            )
+            assert bl['value_controlled_label'] == pi['value_controlled_label'], (
+                f'Row {i} ({key}): value_controlled mismatch: '
+                f'{bl["value_controlled_label"]!r} != '
+                f'{pi["value_controlled_label"]!r}'
+            )
 
     # ---- Fascicle / fiber count validation (VAL-EXT-003/004) ----
 
