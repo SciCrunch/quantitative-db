@@ -1,0 +1,26 @@
+{
+  "featureId": "fix-snapshot-scrutiny-issues",
+  "reviewedAt": "2026-03-25T08:29:35.932050Z",
+  "commitId": "2db9dab",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The fix commit addresses the prior scrutiny failures for both snapshot features. `test/test_snapshot.py` now verifies exact field-by-field equality for `objects.json`, `obj_desc_inst.json`, `obj_desc_quant.json`, and `obj_desc_cat.json` (`test/test_snapshot.py:349`, `:380`, `:412`, `:447`), and its session fixture now depends on the shared `rebuild_database` fixture instead of the old count-based shortcut (`test/test_snapshot.py:59`, `test/conftest.py:68`). In `quantdb/snapshot.py`, missing fixture files now produce explicit mismatches (`quantdb/snapshot.py:586-591`, `:605-610`), and full-row comparisons now fail on row-count mismatches even when PK dedup leaves no added/removed/modified rows (`quantdb/snapshot.py:552-554`). I did not find any remaining feature-scoped defects in this fix.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The `db-pipeline-worker` skill is now stale about where `rebuild_database` lives. It still tells workers to reuse the fixture from `test/test_ingest_f006.py`, but this fix centralized the fixture in `test/conftest.py` and AGENTS already documents that shared location.",
+      "evidence": "`.factory/skills/db-pipeline-worker/SKILL.md:35,48` still reference `test/test_ingest_f006.py`; mission `AGENTS.md:89` says the fixture should be shared via `test/conftest.py`; the reviewed fix implements that at `test/conftest.py:68`."
+    },
+    {
+      "area": "knowledge",
+      "observation": "The shared testing notes still point readers at the old fixture location, which may send future workers to the wrong file when they need the production-dump restore path.",
+      "evidence": "`.factory/library/user-testing.md:42` still says `test_ingest_f006.py::rebuild_database` takes ~30s, while the reviewed fix moved the shared fixture to `test/conftest.py:68`."
+    }
+  ],
+  "addressesFailureFrom": "/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/.factory/validation/gold-standard-snapshots/scrutiny/synthesis.json",
+  "summary": "Pass. Commit `2db9dab` resolves the prior blocking snapshot issues and the noted non-blocking row-count issue: the formerly count-only full-row fixtures are now checked exactly against the DB, `test/test_snapshot.py` uses the shared rebuild fixture, missing snapshot files are surfaced as mismatches, and row-count discrepancies now force comparison failure. No remaining feature-scoped review issues found."
+}
