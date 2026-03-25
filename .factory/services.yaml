@@ -1,17 +1,15 @@
 commands:
-  install: /Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pip install -e ".[dev]"
-  test: /Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pytest test/ -v --no-header -x --ignore=test/test_api.py
-  test-unit: /Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pytest test/test_generic_ingest.py -v --no-header -x
-  test-integration: /Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pytest test/test_deep_upsert.py -v --no-header -x
-  test-models: /Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pytest test/test_models.py -v --no-header -x
-  typecheck: echo "No typechecker configured for this project"
-  lint: cd "/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db" && /Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pytest test/ --co -q --no-header 2>&1 | head -1 && echo "lint check - no flake8/ruff configured"
-  python: /Users/tmsincomb/miniforge3/envs/quantdb/bin/python3
+  python: /Users/tmsincomb/miniforge3/envs/quantdb/bin/python
+  pytest: /Users/tmsincomb/miniforge3/envs/quantdb/bin/python -m pytest
+  test: /Users/tmsincomb/miniforge3/envs/quantdb/bin/python -m pytest test/ -v --no-header -x --ignore=test/test_api.py
+  test-aws: /Users/tmsincomb/miniforge3/envs/quantdb/bin/python -m pytest test/ -v --no-header -x --ignore=test/test_api.py --run-aws
+  psql-local: psql -U postgres -h localhost -p 5432 -d quantdb_test
+  psql-aws: psql "host=troy-quantdb-test.crxhhfokqjgu.us-east-1.rds.amazonaws.com port=5432 dbname=postgres user=postgres sslmode=require"
 
 services:
-  postgres:
-    start: brew services start postgresql@16
-    stop: brew services stop postgresql@16
-    healthcheck: psql -U quantdb-test-user -h localhost -p 5432 -d quantdb_test -c "SELECT 1" -t -A
+  postgres-local:
+    start: echo "PostgreSQL is managed by system services"
+    stop: echo "Do not stop system PostgreSQL"
+    healthcheck: pg_isready -h localhost -p 5432
     port: 5432
     depends_on: []

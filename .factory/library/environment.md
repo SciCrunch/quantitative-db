@@ -1,36 +1,34 @@
 # Environment
 
-**What belongs here:** Required env vars, external dependencies, setup notes.
+Environment variables, external dependencies, and setup notes.
+
+**What belongs here:** Required env vars, external API keys/services, dependency quirks, platform-specific notes.
 **What does NOT belong here:** Service ports/commands (use `.factory/services.yaml`).
 
 ---
 
 ## Python Environment
 
-- Conda env: `/Users/tmsincomb/miniforge3/envs/quantdb/`
-- Python: 3.12+ (in conda env)
-- System python3 (3.14) does NOT have SQLAlchemy — always use conda env
-- Package installed in editable mode: `pip install -e ".[dev]"`
-- Key dependencies: SQLAlchemy 2.0.40, psycopg2-binary 2.9.10, Flask-SQLAlchemy 3.1.1, pytest 8.3.5
+- Conda env: `quantdb` at `/Users/tmsincomb/miniforge3/envs/quantdb/`
+- Python: 3.12
+- Key packages: SQLAlchemy 2.0.40, pytest 8.3.5, psycopg2, sparcur 0.0.1.dev5, idlib, orthauth
+- DO NOT use `.venv/` (different SQLAlchemy version, missing sparcur)
 
-## Database
+## sparcur Quirks
 
-- PostgreSQL 16.13 (Homebrew) on localhost:5432
-- Trust auth (no passwords for localhost connections)
-- Test database: `quantdb_test` (20 tables in `quantdb` schema)
-- User: `quantdb-test-user` (SELECT, INSERT privileges)
-- Committed cleanup for write-based tests may require a second localhost connection with a higher-privilege local role; `quantdb-test-user` cannot delete committed rows from tables like `objects`
-- Search path: `quantdb, public` (set via event listener in models.py)
+- `sparcur.objects` CANNOT be imported (module missing in this version)
+- Safe imports: `sparcur.utils.PennsieveId`, `sparcur.utils.fromJson`, `sparcur.utils.register_type`, `sparcur.paths.Path`
+- pennsieve SDK pinned to v6 (pennsieve<7)
 
-## Auth Config
+## Database Credentials
 
-- orthauth config at `~/.config/quantdb/config.yaml`
-- `test-db-*` keys point to localhost quantdb_test
-- `db-*` keys commented out (production requires explicit env vars)
-- Because orthauth resolution can still be overridden to AWS, tests that reflect models should construct an explicit localhost engine and call `reflect_models(engine=engine)` rather than relying on the no-arg default.
+- Local: trust auth (no password), user=quantdb-test-user or postgres
+- AWS RDS: credentials in ~/.pgpass, user=postgres, SSL required
+- orthauth config at ~/.config/quantdb/config.yaml: test-db-* = localhost, db-* = AWS test instance
 
-## CRITICAL CONSTRAINT
+## Cassava Data
 
-- **NO AWS/external network calls.** All tests must use localhost:5432 only.
-- Never connect to `*.amazonaws.com` or `cassava.ucsd.edu` from test code.
-- As of 2026-03-24, the full suite command `pytest test/ -v --no-header -x` fails immediately in `test/test_api.py` because the Flask API path still opens a SQLAlchemy connection to `sparc-nlp.cpmk2alqjf9s.us-west-2.rds.amazonaws.com` instead of localhost, which raises `psycopg2.OperationalError: fe_sendauth: no password supplied`.
+- Public metadata API: https://cassava.ucsd.edu/sparc/datasets/{uuid}/LATEST/
+- No auth needed for cassava
+- Cached at ~/.quantdb/cassava.ucsd.edu.cache/
+- Pennsieve API needed for actual file downloads (credentials in ~/.pennsieve/config.ini)

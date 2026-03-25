@@ -1,60 +1,61 @@
 # Architecture
 
-**What belongs here:** Architectural decisions, patterns, module structure.
+Architectural decisions, patterns discovered, and key design constraints.
+
+**What belongs here:** Schema structure, FK dependency chain, trigger ordering, insert patterns.
 
 ---
 
-## Module Structure
+## quantdb Schema (20 tables, 6 topo levels)
 
+Level 0 (lookup): units, aspects, descriptors_inst, controlled_terms, addresses
+Level 1: descriptors_quant, descriptors_cat (depend on units, aspects, descriptors_inst)
+Level 2: objects_internal, objects (circular dep, broken at objects_internal -> objects)
+Level 3: dataset_object, values_inst, obj_desc_inst (depend on objects)
+Level 4: instance_parent, equiv_inst, class_parent, aspect_parent, obj_desc_quant, obj_desc_cat (depend on values_inst/obj_desc_inst)
+Level 5: values_quant, values_cat (depend on obj_desc_quant/obj_desc_cat + values_inst + objects)
+
+## Critical Trigger Ordering
+
+For values_quant INSERT:
+1. obj_desc_inst row must exist for (object, desc_inst) -- check_desc_inst_exists trigger
+2. obj_desc_quant row must exist for (object, desc_quant) -- composite FK
+3. values_inst row must exist for instance -- FK
+
+For values_cat INSERT:
+1. obj_desc_inst row must exist for (object, desc_inst) -- check_desc_inst_exists trigger
+2. obj_desc_cat row must exist for (object, desc_cat) -- composite FK
+3. values_inst row must exist for instance -- FK
+
+deep_upsert() handles this automatically via _ensure_obj_desc_inst, _ensure_obj_desc_quant, _ensure_obj_desc_cat.
+
+## FK-Safe Deletion Order (no CASCADE in schema)
+
+Delete child-first:
+1. values_quant, values_cat
+2. obj_desc_quant, obj_desc_cat
+3. obj_desc_inst
+4. instance_parent, equiv_inst
+5. values_inst
+6. dataset_object
+7. objects_internal
+8. objects (only the non-dataset package objects)
+
+## Ingest API Pattern
+
+```python
+from quantdb.generic_ingest import Ingest
+from quantdb.models import reflect_models
+
+models = reflect_models(engine=engine)
+ing = Ingest(models)
+
+with ing.session() as s:
+    # FK columns accept string labels (auto-resolved to PKs)
+    ing.row(s, 'values_quant',
+        value=42.0, value_blob=42.0,
+        object='<uuid>',          # str -> UUID passthrough
+        desc_inst='nerve',         # str -> lookup by label
+        desc_quant='count',        # str -> lookup by label
+        instance={'dataset': '<uuid>', 'id_formal': 'sub-f006'})  # dict -> composite key lookup
 ```
-quantdb/
-├── models.py          # automap_base reflection → ReflectedModels namedtuple (20 ORM classes)
-├── generic_ingest.py  # NEW: SchemaGraph + deep_upsert + Ingest class
-├── api.py             # Flask API server (DO NOT MODIFY)
-├── ingest.py          # Raw SQL ingest pipelines (DO NOT MODIFY)
-├── config.py          # orthauth config
-├── utils.py           # dbUri helper, logging
-└── exceptions.py      # Custom exceptions
-```
-
-## Key Design Decisions
-
-### Schema Introspection at Reflect Time
-`SchemaGraph` is built once during `reflect_models()` by introspecting `Base.metadata`. It maps FK columns → target tables → natural keys. This avoids repeated introspection at insert time.
-
-### FK Resolution by Value Type
-- `str` value on FK column → lookup target table by single-column natural key (e.g., `label`)
-- `dict` value on FK column → lookup by composite natural key columns
-- `int`/`UUID` value → pass through (pre-resolved)
-- `None` → NULL (for nullable FKs)
-
-### flush() Not commit() During Recursion
-All recursive `deep_upsert` calls use `session.flush()` to make auto-generated PKs available within the transaction. `commit()` only happens at the outermost call site (the Ingest.session() context manager or explicit caller).
-
-### Transaction-Scoped Cache
-A `dict` cache keyed by `(table_name, frozenset(natural_key_values))` prevents redundant SELECTs within a single transaction. Shared across `batch()` calls.
-
-## Schema Facts (from FK Dependency Report)
-
-- 20 tables total: 5 root, 2 leaf, rest intermediate
-- Max FK chain depth: 3 (values_quant → obj_desc_quant → descriptors_quant → units)
-- 1 circular dependency: objects ↔ objects_internal
-- 5 association tables with composite FK-only PKs
-- All integer serial PKs resolvable by natural key lookup
-- Only objects.id requires user-supplied UUID (Pennsieve ID)
-
-## Trigger Constraints for Value Inserts
-
-- `values_quant` inserts must satisfy `values_quant_check_before()`:
-  - `NEW.instance` must point at a `values_inst` row whose `desc_inst` exactly matches `NEW.desc_inst`
-  - the chosen `descriptors_quant.domain` must be `NULL`, equal to `NEW.desc_inst`, or an ancestor of `NEW.desc_inst` through `get_parent_desc_inst(...)`
-- `values_cat` inserts must satisfy the analogous `values_cat_check_before()` rules against `descriptors_cat.domain`
-- Integration tests that insert `values_quant`/`values_cat` directly should therefore pick compatible `values_inst` + descriptor combinations (or intentionally assert the trigger error)
-
-## Existing Patterns to Follow
-
-- `models.py` uses `_snake_to_camel()` for table→class name mapping
-- `models.py` uses `_disambiguated_scalar_name` / `_disambiguated_collection_name` for relationship naming
-- `models.py` suppresses automap overlapping-relationship warnings (harmless for read-only ORM access)
-- Test fixtures use `rebuild_database` pattern (see `test_ingest_f006.py`)
-- Tests use `session.rollback()` after each test to avoid pollution
