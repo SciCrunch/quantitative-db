@@ -1,0 +1,56 @@
+{
+  "featureId": "ingest-v2-pipeline",
+  "reviewedAt": "2026-03-25T22:29:11Z",
+  "commitId": "712e2e3",
+  "transcriptSkeletonReviewed": false,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The feature adds the requested dump-based extract/delete/reinsert module and a starter test file, but the implementation does not satisfy the feature contract. The scale-critical ingest path bypasses `Ingest.batch()` entirely, `obj_desc_*` data is not actually extracted or preserved, and quantitative values are rounded by converting PostgreSQL `numeric` values to Python floats before reinsert.",
+    "issues": [
+      {
+        "file": "quantdb/ingest_v2.py",
+        "line": 498,
+        "severity": "blocking",
+        "description": "The feature contract requires `ingest_f006_v2()` to prove the Ingest API can handle f006-scale data and the feature metadata explicitly says `ingest_f006_v2() inserts all f006 data via Ingest.batch()`. The implementation explicitly does the opposite for the scale-critical tables: only `objects`, `dataset_object`, and `equiv_inst` use `Ingest.batch()` (`ing.batch(...)` at lines 535, 603, and 662), while `values_inst`, `instance_parent`, `values_quant`, and `values_cat` are inserted with raw `insert(...)` / SQL bulk paths at lines 625, 653, 738, and 769 after disabling triggers. That means the feature never exercises the deep-upsert API on the 609k/2.4M-row path it was supposed to prove."
+      },
+      {
+        "file": "quantdb/ingest_v2.py",
+        "line": 465,
+        "severity": "blocking",
+        "description": "The feature description says `extract_f006_from_db()` should extract `obj_desc_*` rows from the restored production database, but the implementation never returns those tables. Instead, `_collect_obj_desc_prerequisites()` synthesizes distinct object/descriptor pairs and `ingest_f006_v2()` recreates `obj_desc_inst`, `obj_desc_quant`, and `obj_desc_cat` with a hard-coded `_DEFAULT_ADDR_FIELD = 1` (line 34; inserts at lines 676-708). Read-only inspection of the restored f006 baseline shows these tables carry real non-default metadata: 79/127 `obj_desc_inst`, 1045/1045 `obj_desc_quant`, and 36/84 `obj_desc_cat` rows have `addr_field <> 1`, with common `obj_desc_quant.addr_field` values such as 46, 45, 54, 68, and 70. Re-ingesting synthetic default rows therefore cannot reproduce the source state and does not meet the feature's stated extract/reinsert behavior."
+      },
+      {
+        "file": "quantdb/ingest_v2.py",
+        "line": 225,
+        "severity": "blocking",
+        "description": "Extraction coerces `values_quant.value` from PostgreSQL `numeric` to Python `float` (`'value': float(row[0])`). That conversion is lossy on real f006 data. A read-only query against the restored baseline found 2,349 dataset-object `values_quant` rows where `value <> ((value::float8)::numeric)`, e.g. `145287.02239800003 -> 145287.022398` and `505.08385249938385 -> 505.083852499384`. Re-inserting those rounded floats changes stored quantitative values, so the pipeline cannot produce exact deep-upsert equivalence even when row counts still match."
+      },
+      {
+        "file": "test/test_ingest_v2.py",
+        "line": 117,
+        "severity": "non_blocking",
+        "description": "The starter tests are too weak to catch the regressions above. `_count_f006()` counts `values_quant`, `values_cat`, and `obj_desc_*` only through `dataset_object` rows (lines 117-144), so it ignores the f006 internal object entirely; read-only queries show that internal object currently has 270 `values_quant`, 34 `values_cat`, and 4/3/1 `obj_desc_inst`/`obj_desc_quant`/`obj_desc_cat` rows. The extraction tests also use `>=` instead of exact counts for `values_quant` and `values_cat` (lines 233 and 249) and the expected key set omits `obj_desc_*` entirely. As written, this suite can pass while internal-object data or descriptor metadata is silently lost."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "This feature was marked complete without the normal mission artifacts, which weakens scrutiny traceability.",
+      "evidence": "`progress_log.jsonl:77-82` shows worker session `5fe1d971-5a92-4120-a51c-76b22174ebdc` started, then failed, and later the mission log says `ingest-v2-pipeline completed (manually verified, all 19 tests pass)`. There is no matching handoff file under `.../handoffs/`, and `jq -s --arg sid \"5fe1d971-5a92-4120-a51c-76b22174ebdc\" '[.[] | select(.workerSessionId == $sid)] | first' worker-transcripts.jsonl` returned `null`."
+    },
+    {
+      "area": "knowledge",
+      "observation": "Shared architecture guidance documents `obj_desc_*` only as trigger prerequisites, but not that f006 production data stores meaningful non-default `addr_field` values there. That omission makes it easy to incorrectly regenerate those tables instead of extracting them.",
+      "evidence": "`.factory/library/architecture.md` says deep upsert auto-creates `obj_desc_*` prerequisites, but does not mention preserving their original metadata. Read-only DB queries against the restored f006 baseline show `addr_field <> 1` for 79/127 `obj_desc_inst`, 1045/1045 `obj_desc_quant`, and 36/84 `obj_desc_cat` rows."
+    },
+    {
+      "area": "skills",
+      "observation": "The `db-pipeline-worker` skill still points workers at the old location of the shared rebuild fixture.",
+      "evidence": "`.factory/skills/db-pipeline-worker/SKILL.md:35,48` says to reuse `rebuild_database` from `test/test_ingest_f006.py`, but the fixture now lives in `test/conftest.py:68`."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Reviewed feature `ingest-v2-pipeline` at commit `712e2e3` and marked it fail. The module exists, but the committed implementation does not actually prove `Ingest.batch()` at f006 scale, does not preserve original `obj_desc_*` metadata, and rounds real numeric values during extraction, so it cannot reproduce the production baseline correctly."
+}
