@@ -47,8 +47,11 @@ F006_UUID = '2a3d01c0-39d3-464a-8746-54c9d67ebe0f'
 
 
 @pytest.fixture(scope='module')
-def reflected() -> Generator[ReflectedModels, None, None]:
+def reflected(rebuild_database) -> Generator[ReflectedModels, None, None]:
     """Reflect the quantdb_test schema once per module.
+
+    Depends on ``rebuild_database`` (session-scoped) to ensure
+    pg_restore has populated lookup tables before any test runs.
 
     Uses an explicit localhost engine to avoid the orthauth → AWS
     redirect.  Skips all tests if the database is unreachable.

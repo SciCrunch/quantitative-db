@@ -23,8 +23,11 @@ from quantdb.utils import dbUri
 
 
 @pytest.fixture(scope='module')
-def reflected() -> Generator[ReflectedModels, None, None]:
+def reflected(rebuild_database) -> Generator[ReflectedModels, None, None]:
     """Reflect the quantdb_test schema once per test module.
+
+    Depends on ``rebuild_database`` (session-scoped) to ensure
+    pg_restore has populated lookup tables before any test runs.
 
     Creates a local engine directly (bypassing orthauth) to guarantee
     a localhost connection.
