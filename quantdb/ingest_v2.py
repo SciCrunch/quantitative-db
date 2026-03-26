@@ -322,18 +322,20 @@ def delete_f006_data(session, models):
 
     # Disable triggers for faster bulk delete (only safe because we're
     # deleting in FK-safe order and the session user is superuser)
+    # Use DISABLE TRIGGER USER (not ALL) so it works on AWS RDS
+    # where the postgres user is not a true superuser.
     _disable_triggers = [
-        'ALTER TABLE quantdb.values_quant DISABLE TRIGGER ALL',
-        'ALTER TABLE quantdb.values_cat DISABLE TRIGGER ALL',
-        'ALTER TABLE quantdb.obj_desc_quant DISABLE TRIGGER ALL',
-        'ALTER TABLE quantdb.obj_desc_cat DISABLE TRIGGER ALL',
-        'ALTER TABLE quantdb.obj_desc_inst DISABLE TRIGGER ALL',
-        'ALTER TABLE quantdb.instance_parent DISABLE TRIGGER ALL',
-        'ALTER TABLE quantdb.equiv_inst DISABLE TRIGGER ALL',
-        'ALTER TABLE quantdb.values_inst DISABLE TRIGGER ALL',
-        'ALTER TABLE quantdb.dataset_object DISABLE TRIGGER ALL',
-        'ALTER TABLE quantdb.objects_internal DISABLE TRIGGER ALL',
-        'ALTER TABLE quantdb.objects DISABLE TRIGGER ALL',
+        'ALTER TABLE quantdb.values_quant DISABLE TRIGGER USER',
+        'ALTER TABLE quantdb.values_cat DISABLE TRIGGER USER',
+        'ALTER TABLE quantdb.obj_desc_quant DISABLE TRIGGER USER',
+        'ALTER TABLE quantdb.obj_desc_cat DISABLE TRIGGER USER',
+        'ALTER TABLE quantdb.obj_desc_inst DISABLE TRIGGER USER',
+        'ALTER TABLE quantdb.instance_parent DISABLE TRIGGER USER',
+        'ALTER TABLE quantdb.equiv_inst DISABLE TRIGGER USER',
+        'ALTER TABLE quantdb.values_inst DISABLE TRIGGER USER',
+        'ALTER TABLE quantdb.dataset_object DISABLE TRIGGER USER',
+        'ALTER TABLE quantdb.objects_internal DISABLE TRIGGER USER',
+        'ALTER TABLE quantdb.objects DISABLE TRIGGER USER',
     ]
     _enable_triggers = [s.replace('DISABLE', 'ENABLE') for s in _disable_triggers]
 
@@ -539,7 +541,7 @@ def ingest_f006_v2(session, models, data_dicts):
     # Step 2: Handle objects_internal + internal objects (circular FK)
     # ------------------------------------------------------------------
     if internal_objects:
-        session.execute(sql_text('ALTER TABLE quantdb.objects DISABLE TRIGGER ALL'))
+        session.execute(sql_text('ALTER TABLE quantdb.objects DISABLE TRIGGER USER'))
         session.execute(
             sql_text('ALTER TABLE quantdb.objects' ' DROP CONSTRAINT' ' constraint_objects_remote_id_type_id_internal')
         )
@@ -593,7 +595,7 @@ def ingest_f006_v2(session, models, data_dicts):
                 ' OR (id_internal IS NOT NULL AND id = id_internal))'
             )
         )
-        session.execute(sql_text('ALTER TABLE quantdb.objects ENABLE TRIGGER ALL'))
+        session.execute(sql_text('ALTER TABLE quantdb.objects ENABLE TRIGGER USER'))
         session.flush()
 
     # ------------------------------------------------------------------
@@ -608,7 +610,7 @@ def ingest_f006_v2(session, models, data_dicts):
     # ------------------------------------------------------------------
     vi_rows = data_dicts.get('values_inst', [])
     if vi_rows:
-        session.execute(sql_text('ALTER TABLE quantdb.values_inst DISABLE TRIGGER ALL'))
+        session.execute(sql_text('ALTER TABLE quantdb.values_inst DISABLE TRIGGER USER'))
 
         resolved_vi = [
             {
@@ -624,7 +626,7 @@ def ingest_f006_v2(session, models, data_dicts):
         vi_table = models.ValuesInst.__table__
         session.execute(insert(vi_table), resolved_vi)
 
-        session.execute(sql_text('ALTER TABLE quantdb.values_inst ENABLE TRIGGER ALL'))
+        session.execute(sql_text('ALTER TABLE quantdb.values_inst ENABLE TRIGGER USER'))
         session.flush()
 
     # Build instance lookup: (dataset_uuid, id_formal) -> int id
@@ -635,7 +637,7 @@ def ingest_f006_v2(session, models, data_dicts):
     # ------------------------------------------------------------------
     ip_rows = data_dicts.get('instance_parent', [])
     if ip_rows:
-        session.execute(sql_text('ALTER TABLE quantdb.instance_parent DISABLE TRIGGER ALL'))
+        session.execute(sql_text('ALTER TABLE quantdb.instance_parent DISABLE TRIGGER USER'))
 
         resolved_ip = [
             {
@@ -652,14 +654,54 @@ def ingest_f006_v2(session, models, data_dicts):
         ip_table = models.InstanceParent.__table__
         session.execute(insert(ip_table), resolved_ip)
 
-        session.execute(sql_text('ALTER TABLE quantdb.instance_parent ENABLE TRIGGER ALL'))
+        session.execute(sql_text('ALTER TABLE quantdb.instance_parent ENABLE TRIGGER USER'))
         session.flush()
 
     # ------------------------------------------------------------------
-    # Step 6: Insert equiv_inst (small, 37 rows, Ingest.batch())
+    # Step 6: Insert equiv_inst (small, 37 rows)
     # ------------------------------------------------------------------
-    if data_dicts.get('equiv_inst'):
-        ing.batch(session, 'equiv_inst', data_dicts['equiv_inst'])
+    # equiv_inst has cross-dataset references (f006 left_thing -> other
+    # dataset right_thing).  On AWS where only f006 data exists, we
+    # use raw SQL with the instance lookup.  If the referenced instance
+    # does not exist (cross-dataset not loaded), we skip that row.
+    ei_rows = data_dicts.get('equiv_inst', [])
+    if ei_rows:
+        skipped = 0
+        for ei in ei_rows:
+            lt_key = (
+                ei['left_thing']['dataset'],
+                ei['left_thing']['id_formal'],
+            )
+            rt_key = (
+                ei['right_thing']['dataset'],
+                ei['right_thing']['id_formal'],
+            )
+            lt_id = inst_lookup.get(lt_key)
+            # right_thing may reference another dataset not in inst_lookup
+            rt_id = None
+            if rt_key in inst_lookup:
+                rt_id = inst_lookup[rt_key]
+            else:
+                # Try resolving from DB (cross-dataset reference)
+                rt_row = session.execute(
+                    sql_text('SELECT id FROM quantdb.values_inst' ' WHERE dataset = :ds AND id_formal = :idf'),
+                    {'ds': rt_key[0], 'idf': rt_key[1]},
+                ).first()
+                if rt_row:
+                    rt_id = rt_row[0]
+
+            if lt_id is not None and rt_id is not None:
+                session.execute(
+                    sql_text(
+                        'INSERT INTO quantdb.equiv_inst'
+                        ' (left_thing, right_thing)'
+                        ' VALUES (:lt, :rt)'
+                        ' ON CONFLICT DO NOTHING'
+                    ),
+                    {'lt': lt_id, 'rt': rt_id},
+                )
+            else:
+                skipped += 1
         session.flush()
 
     # ------------------------------------------------------------------
@@ -716,7 +758,7 @@ def ingest_f006_v2(session, models, data_dicts):
     # ------------------------------------------------------------------
     vq_rows = data_dicts.get('values_quant', [])
     if vq_rows:
-        session.execute(sql_text('ALTER TABLE quantdb.values_quant DISABLE TRIGGER ALL'))
+        session.execute(sql_text('ALTER TABLE quantdb.values_quant DISABLE TRIGGER USER'))
 
         resolved_vq = [
             {
@@ -737,7 +779,7 @@ def ingest_f006_v2(session, models, data_dicts):
         vq_table = models.ValuesQuant.__table__
         session.execute(insert(vq_table), resolved_vq)
 
-        session.execute(sql_text('ALTER TABLE quantdb.values_quant ENABLE TRIGGER ALL'))
+        session.execute(sql_text('ALTER TABLE quantdb.values_quant ENABLE TRIGGER USER'))
         session.flush()
 
     # ------------------------------------------------------------------
@@ -745,7 +787,7 @@ def ingest_f006_v2(session, models, data_dicts):
     # ------------------------------------------------------------------
     vc_rows = data_dicts.get('values_cat', [])
     if vc_rows:
-        session.execute(sql_text('ALTER TABLE quantdb.values_cat DISABLE TRIGGER ALL'))
+        session.execute(sql_text('ALTER TABLE quantdb.values_cat DISABLE TRIGGER USER'))
 
         resolved_vc = [
             {
@@ -768,5 +810,5 @@ def ingest_f006_v2(session, models, data_dicts):
         vc_table = models.ValuesCat.__table__
         session.execute(insert(vc_table), resolved_vc)
 
-        session.execute(sql_text('ALTER TABLE quantdb.values_cat ENABLE TRIGGER ALL'))
+        session.execute(sql_text('ALTER TABLE quantdb.values_cat ENABLE TRIGGER USER'))
         session.flush()

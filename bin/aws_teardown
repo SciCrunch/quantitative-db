@@ -61,69 +61,29 @@ fi
 # any rows are removed.
 echo "Deleting f006 data in FK-safe order..."
 
-aws_psql -v ON_ERROR_STOP=on <<SQL
+TEARDOWN_SQL="
 BEGIN;
-
--- Capture f006-related object UUIDs before deletion
 CREATE TEMP TABLE _f006_objs (id uuid) ON COMMIT DROP;
-
 INSERT INTO _f006_objs (id)
     SELECT object FROM quantdb.dataset_object WHERE dataset = '${F006_UUID}'
-    UNION
-    SELECT id FROM quantdb.objects_internal WHERE dataset = '${F006_UUID}'
-    UNION
-    SELECT '${F006_UUID}'::uuid;
-
--- 1. values_quant, values_cat (leaf tables)
-DELETE FROM quantdb.values_quant
- WHERE object IN (SELECT id FROM _f006_objs);
-DELETE FROM quantdb.values_cat
- WHERE object IN (SELECT id FROM _f006_objs);
-
--- 2. obj_desc_quant, obj_desc_cat
-DELETE FROM quantdb.obj_desc_quant
- WHERE object IN (SELECT id FROM _f006_objs);
-DELETE FROM quantdb.obj_desc_cat
- WHERE object IN (SELECT id FROM _f006_objs);
-
--- 3. obj_desc_inst
-DELETE FROM quantdb.obj_desc_inst
- WHERE object IN (SELECT id FROM _f006_objs);
-
--- 4. instance_parent, equiv_inst
-DELETE FROM quantdb.instance_parent
- WHERE id IN (SELECT id FROM quantdb.values_inst
-              WHERE dataset = '${F006_UUID}');
-DELETE FROM quantdb.equiv_inst
- WHERE left_thing IN (SELECT id FROM quantdb.values_inst
-                      WHERE dataset = '${F006_UUID}')
-    OR right_thing IN (SELECT id FROM quantdb.values_inst
-                       WHERE dataset = '${F006_UUID}');
-
--- 5. values_inst
-DELETE FROM quantdb.values_inst
- WHERE dataset = '${F006_UUID}';
-
--- 6. dataset_object
-DELETE FROM quantdb.dataset_object
- WHERE dataset = '${F006_UUID}';
-
--- 7. Break circular FK: objects.id_internal -> objects_internal.id
-UPDATE quantdb.objects
-   SET id_internal = NULL
- WHERE id IN (SELECT id FROM _f006_objs)
-   AND id_internal IS NOT NULL;
-
--- 8. objects_internal
-DELETE FROM quantdb.objects_internal
- WHERE dataset = '${F006_UUID}';
-
--- 9. objects (package + dataset object)
-DELETE FROM quantdb.objects
- WHERE id IN (SELECT id FROM _f006_objs);
-
+    UNION SELECT id FROM quantdb.objects_internal WHERE dataset = '${F006_UUID}'
+    UNION SELECT '${F006_UUID}'::uuid;
+DELETE FROM quantdb.values_quant WHERE object IN (SELECT id FROM _f006_objs);
+DELETE FROM quantdb.values_cat WHERE object IN (SELECT id FROM _f006_objs);
+DELETE FROM quantdb.obj_desc_quant WHERE object IN (SELECT id FROM _f006_objs);
+DELETE FROM quantdb.obj_desc_cat WHERE object IN (SELECT id FROM _f006_objs);
+DELETE FROM quantdb.obj_desc_inst WHERE object IN (SELECT id FROM _f006_objs);
+DELETE FROM quantdb.instance_parent WHERE id IN (SELECT id FROM quantdb.values_inst WHERE dataset = '${F006_UUID}');
+DELETE FROM quantdb.equiv_inst WHERE left_thing IN (SELECT id FROM quantdb.values_inst WHERE dataset = '${F006_UUID}') OR right_thing IN (SELECT id FROM quantdb.values_inst WHERE dataset = '${F006_UUID}');
+DELETE FROM quantdb.values_inst WHERE dataset = '${F006_UUID}';
+DELETE FROM quantdb.dataset_object WHERE dataset = '${F006_UUID}';
+UPDATE quantdb.objects SET id_internal = NULL WHERE id IN (SELECT id FROM _f006_objs) AND id_internal IS NOT NULL;
+DELETE FROM quantdb.objects_internal WHERE dataset = '${F006_UUID}';
+DELETE FROM quantdb.objects WHERE id IN (SELECT id FROM _f006_objs);
 COMMIT;
-SQL
+"
+
+aws_psql -v ON_ERROR_STOP=on -c "$TEARDOWN_SQL"
 
 echo "f006 data deleted."
 

@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# aws_e2e_test -- run the full AWS E2E pipeline: setup + ingest + verify + teardown.
+#
+# Orchestrates the complete end-to-end test against the AWS RDS test
+# instance:
+#   1. Ensures schema and lookup data exist (aws_setup, idempotent)
+#   2. Runs pytest E2E tests (teardown old data, ingest f006, verify counts)
+#   3. Cleans up f006 data afterward (aws_teardown)
+#
+# Prerequisites:
+#   - PostgreSQL running on localhost:5432 with quantdb_test database
+#   - Production dump at resources/quantdb_production_template.dump
+#   - AWS RDS reachable (troy-quantdb-test.crxhhfokqjgu.us-east-1.rds.amazonaws.com)
+#   - Credentials in ~/.pgpass
+#
+# Usage:
+#   bash bin/aws_e2e_test
+set -e
+
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+  DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+BIN_DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+PROJECT_DIR="$( cd "$BIN_DIR/.." && pwd )"
+
+PYTHON="/Users/tmsincomb/miniforge3/envs/quantdb/bin/python"
+
+# Ensure teardown runs even on failure
+cleanup() {
+    echo ""
+    echo "Step 3: Cleaning up f006 data on AWS..."
+    bash "$BIN_DIR/aws_teardown" || true
+    echo ""
+}
+trap cleanup EXIT
+
+echo "========================================"
+echo "  AWS E2E Test"
+echo "========================================"
+echo ""
+
+# Step 1: Ensure schema and lookup data on AWS
+echo "Step 1: Setting up schema on AWS..."
+bash "$BIN_DIR/aws_setup"
+echo ""
+
+# Step 2: Run E2E tests (teardown old data -> ingest -> verify counts)
+echo "Step 2: Running E2E ingest + verification tests..."
+echo "  (This may take 15-30 minutes for data extraction and network ingest)"
+echo ""
+cd "$PROJECT_DIR"
+$PYTHON -m pytest test/test_aws.py -v --no-header --run-aws -x
+
+echo ""
+echo "========================================"
+echo "  AWS E2E Test Complete -- ALL PASSED"
+echo "========================================"
