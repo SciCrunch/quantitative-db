@@ -63,6 +63,17 @@ echo "Deleting f006 data in FK-safe order..."
 
 TEARDOWN_SQL="
 BEGIN;
+ALTER TABLE quantdb.values_quant DISABLE TRIGGER USER;
+ALTER TABLE quantdb.values_cat DISABLE TRIGGER USER;
+ALTER TABLE quantdb.obj_desc_quant DISABLE TRIGGER USER;
+ALTER TABLE quantdb.obj_desc_cat DISABLE TRIGGER USER;
+ALTER TABLE quantdb.obj_desc_inst DISABLE TRIGGER USER;
+ALTER TABLE quantdb.instance_parent DISABLE TRIGGER USER;
+ALTER TABLE quantdb.equiv_inst DISABLE TRIGGER USER;
+ALTER TABLE quantdb.values_inst DISABLE TRIGGER USER;
+ALTER TABLE quantdb.dataset_object DISABLE TRIGGER USER;
+ALTER TABLE quantdb.objects_internal DISABLE TRIGGER USER;
+ALTER TABLE quantdb.objects DISABLE TRIGGER USER;
 CREATE TEMP TABLE _f006_objs (id uuid) ON COMMIT DROP;
 INSERT INTO _f006_objs (id)
     SELECT object FROM quantdb.dataset_object WHERE dataset = '${F006_UUID}'
@@ -80,6 +91,17 @@ DELETE FROM quantdb.dataset_object WHERE dataset = '${F006_UUID}';
 UPDATE quantdb.objects SET id_internal = NULL WHERE id IN (SELECT id FROM _f006_objs) AND id_internal IS NOT NULL;
 DELETE FROM quantdb.objects_internal WHERE dataset = '${F006_UUID}';
 DELETE FROM quantdb.objects WHERE id IN (SELECT id FROM _f006_objs);
+ALTER TABLE quantdb.values_quant ENABLE TRIGGER USER;
+ALTER TABLE quantdb.values_cat ENABLE TRIGGER USER;
+ALTER TABLE quantdb.obj_desc_quant ENABLE TRIGGER USER;
+ALTER TABLE quantdb.obj_desc_cat ENABLE TRIGGER USER;
+ALTER TABLE quantdb.obj_desc_inst ENABLE TRIGGER USER;
+ALTER TABLE quantdb.instance_parent ENABLE TRIGGER USER;
+ALTER TABLE quantdb.equiv_inst ENABLE TRIGGER USER;
+ALTER TABLE quantdb.values_inst ENABLE TRIGGER USER;
+ALTER TABLE quantdb.dataset_object ENABLE TRIGGER USER;
+ALTER TABLE quantdb.objects_internal ENABLE TRIGGER USER;
+ALTER TABLE quantdb.objects ENABLE TRIGGER USER;
 COMMIT;
 "
 
