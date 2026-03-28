@@ -64,52 +64,54 @@ INSERT INTO controlled_terms (iri, label) VALUES
 ON CONFLICT (label) DO NOTHING;
 
 -- =========================================================================
--- 6. NerveMorphology.csv per-slice descriptors_quant (pixel-11um units)
+-- 6. NerveMorphology.csv per-slice descriptors_quant (um/um2 units)
 --    Columns: area, perimeter, eq_diameter, center_x, center_y,
 --             major_axis, minor_axis, angle
+--    NOTE: 'nerve cross section diameter um' (id=13) already exists in
+--    f006 — ON CONFLICT DO NOTHING will skip it. Same for angle degree.
 -- =========================================================================
 
 INSERT INTO descriptors_quant (label, domain, aspect, unit, aggregation_type) VALUES
-('nerve cross section area pixel-11um',
+('nerve cross section area um2',
  desc_inst_from_label('nerve-cross-section'),
  aspect_from_label('area'),
- unit_from_label('pixel-11um'),
+ unit_from_label('um2'),
  'instance'),
 
-('nerve cross section perimeter pixel-11um',
+('nerve cross section perimeter um',
  desc_inst_from_label('nerve-cross-section'),
  aspect_from_label('perimeter'),
- unit_from_label('pixel-11um'),
+ unit_from_label('um'),
  'instance'),
 
-('nerve cross section eq diameter pixel-11um',
+('nerve cross section diameter um',
  desc_inst_from_label('nerve-cross-section'),
  aspect_from_label('diameter'),
- unit_from_label('pixel-11um'),
+ unit_from_label('um'),
  'instance'),
 
-('nerve cross section centroid-x pixel-11um',
+('nerve cross section centroid-x um',
  desc_inst_from_label('nerve-cross-section'),
  aspect_from_label('centroid-x'),
- unit_from_label('pixel-11um'),
+ unit_from_label('um'),
  'instance'),
 
-('nerve cross section centroid-y pixel-11um',
+('nerve cross section centroid-y um',
  desc_inst_from_label('nerve-cross-section'),
  aspect_from_label('centroid-y'),
- unit_from_label('pixel-11um'),
+ unit_from_label('um'),
  'instance'),
 
-('nerve cross section major axis pixel-11um',
+('nerve cross section major axis um',
  desc_inst_from_label('nerve-cross-section'),
  aspect_from_label('major-axis'),
- unit_from_label('pixel-11um'),
+ unit_from_label('um'),
  'instance'),
 
-('nerve cross section minor axis pixel-11um',
+('nerve cross section minor axis um',
  desc_inst_from_label('nerve-cross-section'),
  aspect_from_label('minor-axis'),
- unit_from_label('pixel-11um'),
+ unit_from_label('um'),
  'instance'),
 
 ('nerve cross section angle degree',
@@ -121,49 +123,52 @@ INSERT INTO descriptors_quant (label, domain, aspect, unit, aggregation_type) VA
 ON CONFLICT (label) DO NOTHING;
 
 -- =========================================================================
--- 7. GraphML fascicle node descriptors_quant (pixel-11um units)
+-- 7. GraphML fascicle node descriptors_quant (um/um2 units)
 --    Columns: area, equivalent_diameter, centroid-0, centroid-1,
 --             ellipse_major_axis, ellipse_minor_axis, ellipse_angle
+--    NOTE: 'fascicle cross section area um2' (id=32) and
+--    'fascicle cross section diameter um' (id=14) already exist in f006 —
+--    ON CONFLICT DO NOTHING will skip them.
 -- =========================================================================
 
 INSERT INTO descriptors_quant (label, domain, aspect, unit, aggregation_type) VALUES
-('fascicle cross section area pixel-11um',
+('fascicle cross section area um2',
  desc_inst_from_label('fascicle-cross-section'),
  aspect_from_label('area'),
- unit_from_label('pixel-11um'),
+ unit_from_label('um2'),
  'instance'),
 
-('fascicle cross section eq diameter pixel-11um',
+('fascicle cross section diameter um',
  desc_inst_from_label('fascicle-cross-section'),
  aspect_from_label('diameter'),
- unit_from_label('pixel-11um'),
+ unit_from_label('um'),
  'instance'),
 
-('fascicle cross section centroid-0 pixel-11um',
+('fascicle cross section centroid-0 um',
  desc_inst_from_label('fascicle-cross-section'),
  aspect_from_label('centroid-x'),
- unit_from_label('pixel-11um'),
+ unit_from_label('um'),
  'instance'),
 
-('fascicle cross section centroid-1 pixel-11um',
+('fascicle cross section centroid-1 um',
  desc_inst_from_label('fascicle-cross-section'),
  aspect_from_label('centroid-y'),
- unit_from_label('pixel-11um'),
+ unit_from_label('um'),
  'instance'),
 
-('fascicle cross section major axis pixel-11um',
+('fascicle cross section ellipse major axis um',
  desc_inst_from_label('fascicle-cross-section'),
  aspect_from_label('major-axis'),
- unit_from_label('pixel-11um'),
+ unit_from_label('um'),
  'instance'),
 
-('fascicle cross section minor axis pixel-11um',
+('fascicle cross section ellipse minor axis um',
  desc_inst_from_label('fascicle-cross-section'),
  aspect_from_label('minor-axis'),
- unit_from_label('pixel-11um'),
+ unit_from_label('um'),
  'instance'),
 
-('fascicle cross section angle degree',
+('fascicle cross section ellipse angle degree',
  desc_inst_from_label('fascicle-cross-section'),
  aspect_from_label('angle'),
  unit_from_label('degree'),
@@ -259,10 +264,37 @@ ON CONFLICT (label) DO NOTHING;
 
 -- =========================================================================
 -- 9. GraphML edge descriptors_cat
+--    NOTE: domain is NULL so ON CONFLICT (domain, range, label) cannot
+--    catch duplicates (NULL != NULL in SQL). Use WHERE NOT EXISTS guard.
+--    First, clean up any duplicate rows from prior non-idempotent runs.
 -- =========================================================================
 
-INSERT INTO descriptors_cat (label, domain, range) VALUES
-('fascicleEdgeIdentity', NULL, 'controlled'),
-('fascicleEdgeSplit', NULL, 'controlled'),
-('fascicleEdgeMerge', NULL, 'controlled')
-ON CONFLICT (domain, range, label) DO NOTHING;
+DELETE FROM descriptors_cat
+WHERE label IN ('fascicleEdgeIdentity', 'fascicleEdgeSplit', 'fascicleEdgeMerge')
+AND id NOT IN (
+    SELECT MIN(id)
+    FROM descriptors_cat
+    WHERE label IN ('fascicleEdgeIdentity', 'fascicleEdgeSplit', 'fascicleEdgeMerge')
+    GROUP BY label
+);
+
+INSERT INTO descriptors_cat (label, domain, range)
+SELECT 'fascicleEdgeIdentity', NULL, 'controlled'
+WHERE NOT EXISTS (
+    SELECT 1 FROM descriptors_cat
+    WHERE label = 'fascicleEdgeIdentity' AND domain IS NULL
+);
+
+INSERT INTO descriptors_cat (label, domain, range)
+SELECT 'fascicleEdgeSplit', NULL, 'controlled'
+WHERE NOT EXISTS (
+    SELECT 1 FROM descriptors_cat
+    WHERE label = 'fascicleEdgeSplit' AND domain IS NULL
+);
+
+INSERT INTO descriptors_cat (label, domain, range)
+SELECT 'fascicleEdgeMerge', NULL, 'controlled'
+WHERE NOT EXISTS (
+    SELECT 1 FROM descriptors_cat
+    WHERE label = 'fascicleEdgeMerge' AND domain IS NULL
+);

@@ -29,24 +29,24 @@ from quantdb.extract_microct import (
 # ---------------------------------------------------------------------------
 
 EXPECTED_NERVE_DESC_QUANT = {
-    'nerve cross section area pixel-11um',
-    'nerve cross section perimeter pixel-11um',
-    'nerve cross section eq diameter pixel-11um',
-    'nerve cross section centroid-x pixel-11um',
-    'nerve cross section centroid-y pixel-11um',
-    'nerve cross section major axis pixel-11um',
-    'nerve cross section minor axis pixel-11um',
+    'nerve cross section area um2',
+    'nerve cross section perimeter um',
+    'nerve cross section diameter um',
+    'nerve cross section centroid-x um',
+    'nerve cross section centroid-y um',
+    'nerve cross section major axis um',
+    'nerve cross section minor axis um',
     'nerve cross section angle degree',
 }
 
 EXPECTED_FASCICLE_DESC_QUANT = {
-    'fascicle cross section area pixel-11um',
-    'fascicle cross section eq diameter pixel-11um',
-    'fascicle cross section centroid-0 pixel-11um',
-    'fascicle cross section centroid-1 pixel-11um',
-    'fascicle cross section major axis pixel-11um',
-    'fascicle cross section minor axis pixel-11um',
-    'fascicle cross section angle degree',
+    'fascicle cross section area um2',
+    'fascicle cross section diameter um',
+    'fascicle cross section centroid-0 um',
+    'fascicle cross section centroid-1 um',
+    'fascicle cross section ellipse major axis um',
+    'fascicle cross section ellipse minor axis um',
+    'fascicle cross section ellipse angle degree',
 }
 
 EXPECTED_EDGE_DESC_CAT = {
@@ -386,17 +386,26 @@ class TestParseNerveMorphology:
         # All 8 columns should be present
         assert labels == EXPECTED_NERVE_DESC_QUANT
 
-    def test_values_stored_as_raw_pixels(self):
-        """Values are stored in pixel-11um units (raw pixel values)."""
-        # First row: area=100 pixels → stored as 100.0
-        area_dicts = [d for d in self.result if d['desc_quant'] == 'nerve cross section area pixel-11um']
+    def test_values_converted_to_um2(self):
+        """Area values are converted: pixels * 129.96 → um2."""
+        # First row: area=100 pixels → 100 * 129.96 = 12996.0 um2
+        area_dicts = [d for d in self.result if d['desc_quant'] == 'nerve cross section area um2']
         assert len(area_dicts) == 2
-        # Row 0: area=100
         row0_area = [d for d in area_dicts if '-slice-0' in d['instance']['id_formal']]
         assert len(row0_area) == 1
-        assert row0_area[0]['value'] == 100.0
+        assert row0_area[0]['value'] == pytest.approx(100.0 * 129.96)
+
+    def test_linear_values_converted_to_um(self):
+        """Linear values are converted: pixels * 11.4 → um."""
+        # First row: perimeter=50.0 pixels → 50.0 * 11.4 = 570.0 um
+        peri_dicts = [d for d in self.result if d['desc_quant'] == 'nerve cross section perimeter um']
+        assert len(peri_dicts) == 2
+        row0_peri = [d for d in peri_dicts if '-slice-0' in d['instance']['id_formal']]
+        assert len(row0_peri) == 1
+        assert row0_peri[0]['value'] == pytest.approx(50.0 * 11.4)
 
     def test_angle_stored_as_degrees(self):
+        """Angle values remain in degrees (no conversion)."""
         angle_dicts = [d for d in self.result if d['desc_quant'] == 'nerve cross section angle degree']
         assert len(angle_dicts) == 2
         values = sorted(d['value'] for d in angle_dicts)
@@ -497,14 +506,33 @@ class TestParseFascicleGraphml:
         assert labels.issubset(EXPECTED_FASCICLE_DESC_QUANT)
         assert labels == EXPECTED_FASCICLE_DESC_QUANT
 
-    def test_node_values_stored_raw(self):
-        """Values stored as raw pixel values."""
+    def test_node_area_values_converted_to_um2(self):
+        """Area values are converted: pixels * 129.96 → um2."""
         area_dicts = [
-            d for d in self.result['values_quant'] if d['desc_quant'] == 'fascicle cross section area pixel-11um'
+            d for d in self.result['values_quant'] if d['desc_quant'] == 'fascicle cross section area um2'
         ]
         assert len(area_dicts) == 3
         values = sorted(d['value'] for d in area_dicts)
-        assert values == [50.0, 55.0, 60.0]
+        assert values == pytest.approx(sorted([50.0 * 129.96, 55.0 * 129.96, 60.0 * 129.96]))
+
+    def test_node_linear_values_converted_to_um(self):
+        """Linear values are converted: pixels * 11.4 → um."""
+        diam_dicts = [
+            d for d in self.result['values_quant'] if d['desc_quant'] == 'fascicle cross section diameter um'
+        ]
+        assert len(diam_dicts) == 3
+        values = sorted(d['value'] for d in diam_dicts)
+        assert values == pytest.approx(sorted([7.98 * 11.4, 8.74 * 11.4, 8.36 * 11.4]))
+
+    def test_node_angle_values_not_converted(self):
+        """Angle values remain in degrees (no conversion)."""
+        angle_dicts = [
+            d for d in self.result['values_quant']
+            if d['desc_quant'] == 'fascicle cross section ellipse angle degree'
+        ]
+        assert len(angle_dicts) == 3
+        values = sorted(d['value'] for d in angle_dicts)
+        assert values == [25.0, 27.5, 30.0]
 
     def test_edge_categorical_values(self):
         """2 edges × 3 properties = 6 values_cat."""

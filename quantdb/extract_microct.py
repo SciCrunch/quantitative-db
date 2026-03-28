@@ -30,27 +30,50 @@ PIXEL_TO_UM = 11.4
 PIXEL_TO_UM2 = 129.96  # 11.4 * 11.4
 
 # Nerve morphology CSV column → descriptor_quant label mapping
-# These columns are in pixel units and need conversion
+# These columns are in pixel units and get converted to um/um2
 _NERVE_MORPH_COLUMNS = {
-    'area': 'nerve cross section area pixel-11um',
-    'perimeter': 'nerve cross section perimeter pixel-11um',
-    'eq_diameter': 'nerve cross section eq diameter pixel-11um',
-    'center_x': 'nerve cross section centroid-x pixel-11um',
-    'center_y': 'nerve cross section centroid-y pixel-11um',
-    'major_axis': 'nerve cross section major axis pixel-11um',
-    'minor_axis': 'nerve cross section minor axis pixel-11um',
+    'area': 'nerve cross section area um2',
+    'perimeter': 'nerve cross section perimeter um',
+    'eq_diameter': 'nerve cross section diameter um',
+    'center_x': 'nerve cross section centroid-x um',
+    'center_y': 'nerve cross section centroid-y um',
+    'major_axis': 'nerve cross section major axis um',
+    'minor_axis': 'nerve cross section minor axis um',
     'angle': 'nerve cross section angle degree',
+}
+
+# Pixel → um/um2 conversion factor per nerve morphology column
+_NERVE_MORPH_CONVERSION = {
+    'area': PIXEL_TO_UM2,
+    'perimeter': PIXEL_TO_UM,
+    'eq_diameter': PIXEL_TO_UM,
+    'center_x': PIXEL_TO_UM,
+    'center_y': PIXEL_TO_UM,
+    'major_axis': PIXEL_TO_UM,
+    'minor_axis': PIXEL_TO_UM,
+    'angle': 1.0,  # degrees, no conversion
 }
 
 # GraphML fascicle node property → descriptor_quant label mapping
 _FASCICLE_NODE_COLUMNS = {
-    'area': 'fascicle cross section area pixel-11um',
-    'equivalent_diameter': 'fascicle cross section eq diameter pixel-11um',
-    'centroid-0': 'fascicle cross section centroid-0 pixel-11um',
-    'centroid-1': 'fascicle cross section centroid-1 pixel-11um',
-    'ellipse_major_axis': 'fascicle cross section major axis pixel-11um',
-    'ellipse_minor_axis': 'fascicle cross section minor axis pixel-11um',
-    'ellipse_angle': 'fascicle cross section angle degree',
+    'area': 'fascicle cross section area um2',
+    'equivalent_diameter': 'fascicle cross section diameter um',
+    'centroid-0': 'fascicle cross section centroid-0 um',
+    'centroid-1': 'fascicle cross section centroid-1 um',
+    'ellipse_major_axis': 'fascicle cross section ellipse major axis um',
+    'ellipse_minor_axis': 'fascicle cross section ellipse minor axis um',
+    'ellipse_angle': 'fascicle cross section ellipse angle degree',
+}
+
+# Pixel → um/um2 conversion factor per fascicle node column
+_FASCICLE_NODE_CONVERSION = {
+    'area': PIXEL_TO_UM2,
+    'equivalent_diameter': PIXEL_TO_UM,
+    'centroid-0': PIXEL_TO_UM,
+    'centroid-1': PIXEL_TO_UM,
+    'ellipse_major_axis': PIXEL_TO_UM,
+    'ellipse_minor_axis': PIXEL_TO_UM,
+    'ellipse_angle': 1.0,  # degrees, no conversion
 }
 
 # GraphML edge boolean property → descriptor_cat label mapping
@@ -77,26 +100,26 @@ _SUMMARY_MORPH_COLUMNS = {
     'measurement_frame': 'measurement frame',
 }
 
-# Trunk NerveMorph and FasMorph columns (per-slice pixel-unit data)
+# Trunk NerveMorph and FasMorph columns (per-slice, converted to um/um2)
 _TRUNK_NERVE_MORPH_COLUMNS = {
-    'area': 'nerve cross section area pixel-11um',
-    'perimeter': 'nerve cross section perimeter pixel-11um',
-    'eq_diameter': 'nerve cross section eq diameter pixel-11um',
-    'center_x': 'nerve cross section centroid-x pixel-11um',
-    'center_y': 'nerve cross section centroid-y pixel-11um',
-    'major_axis': 'nerve cross section major axis pixel-11um',
-    'minor_axis': 'nerve cross section minor axis pixel-11um',
+    'area': 'nerve cross section area um2',
+    'perimeter': 'nerve cross section perimeter um',
+    'eq_diameter': 'nerve cross section diameter um',
+    'center_x': 'nerve cross section centroid-x um',
+    'center_y': 'nerve cross section centroid-y um',
+    'major_axis': 'nerve cross section major axis um',
+    'minor_axis': 'nerve cross section minor axis um',
     'angle': 'nerve cross section angle degree',
 }
 
 _TRUNK_FAS_MORPH_COLUMNS = {
-    'area': 'fascicle cross section area pixel-11um',
-    'equivalent_diameter': 'fascicle cross section eq diameter pixel-11um',
-    'centroid-0': 'fascicle cross section centroid-0 pixel-11um',
-    'centroid-1': 'fascicle cross section centroid-1 pixel-11um',
-    'ellipse_major_axis': 'fascicle cross section major axis pixel-11um',
-    'ellipse_minor_axis': 'fascicle cross section minor axis pixel-11um',
-    'ellipse_angle': 'fascicle cross section angle degree',
+    'area': 'fascicle cross section area um2',
+    'equivalent_diameter': 'fascicle cross section diameter um',
+    'centroid-0': 'fascicle cross section centroid-0 um',
+    'centroid-1': 'fascicle cross section centroid-1 um',
+    'ellipse_major_axis': 'fascicle cross section ellipse major axis um',
+    'ellipse_minor_axis': 'fascicle cross section ellipse minor axis um',
+    'ellipse_angle': 'fascicle cross section ellipse angle degree',
 }
 
 
@@ -279,9 +302,9 @@ def parse_nerve_morphology(
 ) -> list[dict[str, Any]]:
     """Parse NerveMorphology.csv content into flat value dicts.
 
-    Values are stored in pixel-11um units (the raw pixel values as-is),
-    matching the descriptor labels in inserts_microct.sql.
-    Angle values are in degrees and stored unchanged.
+    Raw pixel values are converted to um/um2 before emitting:
+    area *= 129.96 (um2), linear measurements *= 11.4 (um),
+    angle stored as degrees unchanged.
     Blank rows (where the nerve intersects with other neural structures)
     are skipped.
 
@@ -300,7 +323,7 @@ def parse_nerve_morphology(
     Returns
     -------
     list[dict]
-        List of values_quant flat dicts.
+        List of values_quant flat dicts with converted um/um2 values.
     """
     reader = csv.DictReader(io.StringIO(csv_content))
     measurement_cols = [
@@ -328,7 +351,9 @@ def parse_nerve_morphology(
             if not raw:
                 continue
 
-            value = float(raw)
+            # Apply pixel→um/um2 conversion
+            conversion = _NERVE_MORPH_CONVERSION[csv_col]
+            value = float(raw) * conversion
 
             values_quant.append(
                 {
@@ -363,8 +388,9 @@ def parse_fascicle_graphml(
     Each graph node represents a fascicle with measurements.
     Each graph edge has boolean properties (identity, split, merge).
 
-    Node measurements are stored in pixel-11um units (raw values).
-    Angle values are in degrees and stored unchanged.
+    Raw pixel values are converted to um/um2 before emitting:
+    area *= 129.96 (um2), linear measurements *= 11.4 (um),
+    angle stored as degrees unchanged.
 
     Parameters
     ----------
@@ -423,7 +449,9 @@ def parse_fascicle_graphml(
             if raw is None:
                 continue
 
-            value = float(raw)
+            # Apply pixel→um/um2 conversion
+            conversion = _FASCICLE_NODE_CONVERSION[prop_name]
+            value = float(raw) * conversion
 
             values_quant.append(
                 {
@@ -644,14 +672,15 @@ def parse_trunk_nerve_morphology(
             }
         )
 
-        # Per-slice nerve measurements
+        # Per-slice nerve measurements (with pixel→um/um2 conversion)
         for csv_col, desc_quant in _TRUNK_NERVE_MORPH_COLUMNS.items():
             raw = row.get(csv_col, '').strip()
             if not raw:
                 continue
             try:
-                value = float(raw)
-            except ValueError:
+                conversion = _NERVE_MORPH_CONVERSION[csv_col]
+                value = float(raw) * conversion
+            except (ValueError, KeyError):
                 continue
             values_quant.append(
                 {
@@ -761,8 +790,9 @@ def parse_trunk_fas_morphology(
             if not raw:
                 continue
             try:
-                value = float(raw)
-            except ValueError:
+                conversion = _FASCICLE_NODE_CONVERSION[csv_col]
+                value = float(raw) * conversion
+            except (ValueError, KeyError):
                 continue
             values_quant.append(
                 {

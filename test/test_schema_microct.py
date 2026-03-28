@@ -41,24 +41,24 @@ _INSERTS_MICROCT = _SQL_DIR / 'inserts_microct.sql'
 # ---------------------------------------------------------------------------
 
 NERVE_MORPH_DESCRIPTORS = [
-    'nerve cross section area pixel-11um',
-    'nerve cross section perimeter pixel-11um',
-    'nerve cross section eq diameter pixel-11um',
-    'nerve cross section centroid-x pixel-11um',
-    'nerve cross section centroid-y pixel-11um',
-    'nerve cross section major axis pixel-11um',
-    'nerve cross section minor axis pixel-11um',
+    'nerve cross section area um2',
+    'nerve cross section perimeter um',
+    'nerve cross section diameter um',
+    'nerve cross section centroid-x um',
+    'nerve cross section centroid-y um',
+    'nerve cross section major axis um',
+    'nerve cross section minor axis um',
     'nerve cross section angle degree',
 ]
 
 FASCICLE_MORPH_DESCRIPTORS = [
-    'fascicle cross section area pixel-11um',
-    'fascicle cross section eq diameter pixel-11um',
-    'fascicle cross section centroid-0 pixel-11um',
-    'fascicle cross section centroid-1 pixel-11um',
-    'fascicle cross section major axis pixel-11um',
-    'fascicle cross section minor axis pixel-11um',
-    'fascicle cross section angle degree',
+    'fascicle cross section area um2',
+    'fascicle cross section diameter um',
+    'fascicle cross section centroid-0 um',
+    'fascicle cross section centroid-1 um',
+    'fascicle cross section ellipse major axis um',
+    'fascicle cross section ellipse minor axis um',
+    'fascicle cross section ellipse angle degree',
 ]
 
 SUMMARY_MORPH_DESCRIPTORS = [
