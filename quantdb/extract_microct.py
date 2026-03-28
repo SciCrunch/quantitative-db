@@ -23,10 +23,7 @@ import networkx as nx
 
 MICROCT_UUID = 'fb1cbd05-4320-4d8b-ac3a-44f1fe810718'
 
-CASSAVA_BASE = (
-    'https://cassava.ucsd.edu/sparc/datasets'
-    f'/{MICROCT_UUID}/LATEST'
-)
+CASSAVA_BASE = 'https://cassava.ucsd.edu/sparc/datasets' f'/{MICROCT_UUID}/LATEST'
 
 # Pixel conversion factors (from MicroCTDataStandard.md)
 PIXEL_TO_UM = 11.4
@@ -123,10 +120,7 @@ def fetch_cassava_metadata(
     tuple[dict, dict]
         (curation_export, path_metadata) parsed JSON dicts.
     """
-    base = (
-        f'https://cassava.ucsd.edu/sparc/datasets'
-        f'/{dataset_uuid}/LATEST'
-    )
+    base = f'https://cassava.ucsd.edu/sparc/datasets' f'/{dataset_uuid}/LATEST'
 
     ce_url = f'{base}/curation-export.json'
     pm_url = f'{base}/path-metadata.json'
@@ -190,13 +184,15 @@ def extract_microct_entities(
             if 'ncbitaxon_9606' in species_lower or 'ncbitaxon:9606' in species_lower:
                 desc_inst = 'human'
 
-        values_inst.append({
-            'dataset': dataset_uuid,
-            'id_formal': subject_id,
-            'type': 'subject',
-            'desc_inst': desc_inst,
-            'id_sub': subject_id,
-        })
+        values_inst.append(
+            {
+                'dataset': dataset_uuid,
+                'id_formal': subject_id,
+                'type': 'subject',
+                'desc_inst': desc_inst,
+                'id_sub': subject_id,
+            }
+        )
 
     # --- Samples ---
     for ent in curation_export.get('samples', []):
@@ -214,34 +210,42 @@ def extract_microct_entities(
         else:
             desc_inst = 'sample'
 
-        values_inst.append({
-            'dataset': dataset_uuid,
-            'id_formal': sample_id,
-            'type': 'sample',
-            'desc_inst': desc_inst,
-            'id_sub': subject_id,
-            'id_sam': sample_id,
-        })
+        values_inst.append(
+            {
+                'dataset': dataset_uuid,
+                'id_formal': sample_id,
+                'type': 'sample',
+                'desc_inst': desc_inst,
+                'id_sub': subject_id,
+                'id_sam': sample_id,
+            }
+        )
 
         # Parent relationship: sample → subject
         wdf = ent.get('was_derived_from')
         if wdf:
             if isinstance(wdf, list):
                 for p in wdf:
-                    instance_parent.append({
-                        'child': sample_id,
-                        'parent': p,
-                    })
+                    instance_parent.append(
+                        {
+                            'child': sample_id,
+                            'parent': p,
+                        }
+                    )
             else:
-                instance_parent.append({
-                    'child': sample_id,
-                    'parent': wdf,
-                })
+                instance_parent.append(
+                    {
+                        'child': sample_id,
+                        'parent': wdf,
+                    }
+                )
         else:
-            instance_parent.append({
-                'child': sample_id,
-                'parent': subject_id,
-            })
+            instance_parent.append(
+                {
+                    'child': sample_id,
+                    'parent': subject_id,
+                }
+            )
 
     return {
         'values_inst': values_inst,
@@ -300,8 +304,14 @@ def parse_nerve_morphology(
     """
     reader = csv.DictReader(io.StringIO(csv_content))
     measurement_cols = [
-        'area', 'perimeter', 'eq_diameter', 'center_x',
-        'center_y', 'major_axis', 'minor_axis', 'angle',
+        'area',
+        'perimeter',
+        'eq_diameter',
+        'center_x',
+        'center_y',
+        'major_axis',
+        'minor_axis',
+        'angle',
     ]
     values_quant = []
 
@@ -320,17 +330,19 @@ def parse_nerve_morphology(
 
             value = float(raw)
 
-            values_quant.append({
-                'value': value,
-                'value_blob': value,
-                'object': object_uuid,
-                'desc_inst': 'nerve-cross-section',
-                'desc_quant': desc_quant,
-                'instance': {
-                    'dataset': dataset_uuid,
-                    'id_formal': slice_id_formal,
-                },
-            })
+            values_quant.append(
+                {
+                    'value': value,
+                    'value_blob': value,
+                    'object': object_uuid,
+                    'desc_inst': 'nerve-cross-section',
+                    'desc_quant': desc_quant,
+                    'instance': {
+                        'dataset': dataset_uuid,
+                        'id_formal': slice_id_formal,
+                    },
+                }
+            )
 
     return values_quant
 
@@ -382,26 +394,28 @@ def parse_fascicle_graphml(
     for node_id, node_data in G.nodes(data=True):
         frame = node_data.get('frame', '')
         # Create a unique fascicle instance id_formal
-        fasc_id_formal = (
-            f'{nerve_id_formal}-frame-{frame}-fasc-{node_id}'
-        )
+        fasc_id_formal = f'{nerve_id_formal}-frame-{frame}-fasc-{node_id}'
 
         # Create slice instance (nerve cross-section for this frame)
         slice_id_formal = f'{nerve_id_formal}-slice-{frame}'
 
         # Fascicle instance
-        values_inst.append({
-            'dataset': dataset_uuid,
-            'id_formal': fasc_id_formal,
-            'type': 'below',
-            'desc_inst': 'fascicle-cross-section',
-        })
+        values_inst.append(
+            {
+                'dataset': dataset_uuid,
+                'id_formal': fasc_id_formal,
+                'type': 'below',
+                'desc_inst': 'fascicle-cross-section',
+            }
+        )
 
         # Parent: fascicle → slice
-        instance_parent.append({
-            'child': fasc_id_formal,
-            'parent': slice_id_formal,
-        })
+        instance_parent.append(
+            {
+                'child': fasc_id_formal,
+                'parent': slice_id_formal,
+            }
+        )
 
         # Quantitative measurements for each fascicle node
         for prop_name, desc_quant in _FASCICLE_NODE_COLUMNS.items():
@@ -411,26 +425,26 @@ def parse_fascicle_graphml(
 
             value = float(raw)
 
-            values_quant.append({
-                'value': value,
-                'value_blob': value,
-                'object': object_uuid,
-                'desc_inst': 'fascicle-cross-section',
-                'desc_quant': desc_quant,
-                'instance': {
-                    'dataset': dataset_uuid,
-                    'id_formal': fasc_id_formal,
-                },
-            })
+            values_quant.append(
+                {
+                    'value': value,
+                    'value_blob': value,
+                    'object': object_uuid,
+                    'desc_inst': 'fascicle-cross-section',
+                    'desc_quant': desc_quant,
+                    'instance': {
+                        'dataset': dataset_uuid,
+                        'id_formal': fasc_id_formal,
+                    },
+                }
+            )
 
     # --- Process edges ---
     for source, target, edge_data in G.edges(data=True):
         # Get the source node's frame and id_formal
         source_data = G.nodes[source]
         source_frame = source_data.get('frame', '')
-        source_id_formal = (
-            f'{nerve_id_formal}-frame-{source_frame}-fasc-{source}'
-        )
+        source_id_formal = f'{nerve_id_formal}-frame-{source_frame}-fasc-{source}'
 
         for prop_name, desc_cat in _EDGE_BOOL_COLUMNS.items():
             raw = edge_data.get(prop_name)
@@ -445,16 +459,18 @@ def parse_fascicle_graphml(
             else:
                 value = str(raw).lower()
 
-            values_cat.append({
-                'value_controlled': value,
-                'object': object_uuid,
-                'desc_inst': 'fascicle-cross-section',
-                'desc_cat': desc_cat,
-                'instance': {
-                    'dataset': dataset_uuid,
-                    'id_formal': source_id_formal,
-                },
-            })
+            values_cat.append(
+                {
+                    'value_controlled': value,
+                    'object': object_uuid,
+                    'desc_inst': 'fascicle-cross-section',
+                    'desc_cat': desc_cat,
+                    'instance': {
+                        'dataset': dataset_uuid,
+                        'id_formal': source_id_formal,
+                    },
+                }
+            )
 
     return {
         'values_inst': values_inst,
@@ -518,17 +534,21 @@ def parse_summary_morphology(
         # Parent is the sample
         sample_id_formal = f'sam-{subject}-{sample}'
 
-        values_inst.append({
-            'dataset': dataset_uuid,
-            'id_formal': id_formal,
-            'type': 'below',
-            'desc_inst': 'nerve',
-        })
+        values_inst.append(
+            {
+                'dataset': dataset_uuid,
+                'id_formal': id_formal,
+                'type': 'below',
+                'desc_inst': 'nerve',
+            }
+        )
 
-        instance_parent.append({
-            'child': id_formal,
-            'parent': sample_id_formal,
-        })
+        instance_parent.append(
+            {
+                'child': id_formal,
+                'parent': sample_id_formal,
+            }
+        )
 
         for csv_col, desc_quant in _SUMMARY_MORPH_COLUMNS.items():
             raw = row.get(csv_col, '').strip()
@@ -540,17 +560,19 @@ def parse_summary_morphology(
             except ValueError:
                 continue
 
-            values_quant.append({
-                'value': value,
-                'value_blob': value,
-                'object': object_uuid,
-                'desc_inst': 'nerve',
-                'desc_quant': desc_quant,
-                'instance': {
-                    'dataset': dataset_uuid,
-                    'id_formal': id_formal,
-                },
-            })
+            values_quant.append(
+                {
+                    'value': value,
+                    'value_blob': value,
+                    'object': object_uuid,
+                    'desc_inst': 'nerve',
+                    'desc_quant': desc_quant,
+                    'instance': {
+                        'dataset': dataset_uuid,
+                        'id_formal': id_formal,
+                    },
+                }
+            )
 
     return {
         'values_inst': values_inst,
@@ -607,16 +629,20 @@ def parse_trunk_nerve_morphology(
         index_val = row.get('index', '').strip()
         slice_id_formal = f'{trunk_id_formal}-slice-{index_val}'
 
-        values_inst.append({
-            'dataset': dataset_uuid,
-            'id_formal': slice_id_formal,
-            'type': 'below',
-            'desc_inst': 'nerve-cross-section',
-        })
-        instance_parent.append({
-            'child': slice_id_formal,
-            'parent': trunk_id_formal,
-        })
+        values_inst.append(
+            {
+                'dataset': dataset_uuid,
+                'id_formal': slice_id_formal,
+                'type': 'below',
+                'desc_inst': 'nerve-cross-section',
+            }
+        )
+        instance_parent.append(
+            {
+                'child': slice_id_formal,
+                'parent': trunk_id_formal,
+            }
+        )
 
         # Per-slice nerve measurements
         for csv_col, desc_quant in _TRUNK_NERVE_MORPH_COLUMNS.items():
@@ -627,34 +653,38 @@ def parse_trunk_nerve_morphology(
                 value = float(raw)
             except ValueError:
                 continue
-            values_quant.append({
-                'value': value,
-                'value_blob': value,
-                'object': object_uuid,
-                'desc_inst': 'nerve-cross-section',
-                'desc_quant': desc_quant,
-                'instance': {
-                    'dataset': dataset_uuid,
-                    'id_formal': slice_id_formal,
-                },
-            })
+            values_quant.append(
+                {
+                    'value': value,
+                    'value_blob': value,
+                    'object': object_uuid,
+                    'desc_inst': 'nerve-cross-section',
+                    'desc_quant': desc_quant,
+                    'instance': {
+                        'dataset': dataset_uuid,
+                        'id_formal': slice_id_formal,
+                    },
+                }
+            )
 
         # dist_global column (in mm)
         dist_raw = row.get('dist_global', '').strip()
         if dist_raw:
             try:
                 dist_val = float(dist_raw)
-                values_quant.append({
-                    'value': dist_val,
-                    'value_blob': dist_val,
-                    'object': object_uuid,
-                    'desc_inst': 'nerve-cross-section',
-                    'desc_quant': 'global distance mm',
-                    'instance': {
-                        'dataset': dataset_uuid,
-                        'id_formal': slice_id_formal,
-                    },
-                })
+                values_quant.append(
+                    {
+                        'value': dist_val,
+                        'value_blob': dist_val,
+                        'object': object_uuid,
+                        'desc_inst': 'nerve-cross-section',
+                        'desc_quant': 'global distance mm',
+                        'instance': {
+                            'dataset': dataset_uuid,
+                            'id_formal': slice_id_formal,
+                        },
+                    }
+                )
             except ValueError:
                 pass
 
@@ -708,21 +738,23 @@ def parse_trunk_fas_morphology(
         slice_id_formal = f'{trunk_id_formal}-slice-{index_val}'
 
         # Each fascicle row has an implicit index within its slice
-        fasc_id_formal = (
-            f'{slice_id_formal}-fasc-{row_idx}'
-        )
+        fasc_id_formal = f'{slice_id_formal}-fasc-{row_idx}'
         row_idx += 1
 
-        values_inst.append({
-            'dataset': dataset_uuid,
-            'id_formal': fasc_id_formal,
-            'type': 'below',
-            'desc_inst': 'fascicle-cross-section',
-        })
-        instance_parent.append({
-            'child': fasc_id_formal,
-            'parent': slice_id_formal,
-        })
+        values_inst.append(
+            {
+                'dataset': dataset_uuid,
+                'id_formal': fasc_id_formal,
+                'type': 'below',
+                'desc_inst': 'fascicle-cross-section',
+            }
+        )
+        instance_parent.append(
+            {
+                'child': fasc_id_formal,
+                'parent': slice_id_formal,
+            }
+        )
 
         for csv_col, desc_quant in _TRUNK_FAS_MORPH_COLUMNS.items():
             raw = row.get(csv_col, '').strip()
@@ -732,34 +764,38 @@ def parse_trunk_fas_morphology(
                 value = float(raw)
             except ValueError:
                 continue
-            values_quant.append({
-                'value': value,
-                'value_blob': value,
-                'object': object_uuid,
-                'desc_inst': 'fascicle-cross-section',
-                'desc_quant': desc_quant,
-                'instance': {
-                    'dataset': dataset_uuid,
-                    'id_formal': fasc_id_formal,
-                },
-            })
+            values_quant.append(
+                {
+                    'value': value,
+                    'value_blob': value,
+                    'object': object_uuid,
+                    'desc_inst': 'fascicle-cross-section',
+                    'desc_quant': desc_quant,
+                    'instance': {
+                        'dataset': dataset_uuid,
+                        'id_formal': fasc_id_formal,
+                    },
+                }
+            )
 
         # dist_global column (in mm)
         dist_raw = row.get('dist_global', '').strip()
         if dist_raw:
             try:
                 dist_val = float(dist_raw)
-                values_quant.append({
-                    'value': dist_val,
-                    'value_blob': dist_val,
-                    'object': object_uuid,
-                    'desc_inst': 'fascicle-cross-section',
-                    'desc_quant': 'global distance mm',
-                    'instance': {
-                        'dataset': dataset_uuid,
-                        'id_formal': fasc_id_formal,
-                    },
-                })
+                values_quant.append(
+                    {
+                        'value': dist_val,
+                        'value_blob': dist_val,
+                        'object': object_uuid,
+                        'desc_inst': 'fascicle-cross-section',
+                        'desc_quant': 'global distance mm',
+                        'instance': {
+                            'dataset': dataset_uuid,
+                            'id_formal': fasc_id_formal,
+                        },
+                    }
+                )
             except ValueError:
                 pass
 
@@ -880,11 +916,13 @@ def extract_microct_objects(
 
         file_id = _extract_file_id(entry)
 
-        objects.append({
-            'uuid': uuid,
-            'file_id': file_id,
-            'id_type': 'package',
-        })
+        objects.append(
+            {
+                'uuid': uuid,
+                'file_id': file_id,
+                'id_type': 'package',
+            }
+        )
 
     return {'objects': objects}
 
@@ -944,7 +982,7 @@ def _parse_nerve_path(drp: str) -> dict | None:
         '-RawFascicleTracking.graphml',
     ]:
         if name_no_ext.endswith(suffix):
-            name_no_ext = name_no_ext[:-len(suffix)]
+            name_no_ext = name_no_ext[: -len(suffix)]
             break
 
     # Split: SR042-CL1-left_cervical_trunk
@@ -952,7 +990,7 @@ def _parse_nerve_path(drp: str) -> dict | None:
     if not name_no_ext.startswith(subject_id + '-'):
         return None
 
-    remainder = name_no_ext[len(subject_id) + 1:]
+    remainder = name_no_ext[len(subject_id) + 1 :]
     # Sample ID is the first component (e.g. 'CL1')
     # Nerve name is the rest (e.g. 'left_cervical_trunk')
     dash_pos = remainder.find('-')
@@ -960,7 +998,7 @@ def _parse_nerve_path(drp: str) -> dict | None:
         return None
 
     sample_code = remainder[:dash_pos]
-    nerve_name = remainder[dash_pos + 1:]
+    nerve_name = remainder[dash_pos + 1 :]
 
     sample_id = f'sam-{subject_id}-{sample_code}'
 
@@ -1013,12 +1051,12 @@ def _parse_summary_path(drp: str) -> dict | None:
         result['file_type'] = 'trunk_nerve_morphology'
         # Extract trunk name
         name_no_ext = basename.replace('-NerveMorph.csv', '')
-        trunk_name = name_no_ext[len(subject_id) + 1:]
+        trunk_name = name_no_ext[len(subject_id) + 1 :]
         result['trunk_name'] = trunk_name
     elif basename.endswith('-FasMorph.csv'):
         result['file_type'] = 'trunk_fas_morphology'
         name_no_ext = basename.replace('-FasMorph.csv', '')
-        trunk_name = name_no_ext[len(subject_id) + 1:]
+        trunk_name = name_no_ext[len(subject_id) + 1 :]
         result['trunk_name'] = trunk_name
     else:
         return None
@@ -1057,30 +1095,38 @@ def classify_path_metadata_files(
         if basename.endswith('-NerveMorphology.csv'):
             parsed = _parse_nerve_path(drp)
             if parsed:
-                result['nerve_morphology'].append({
-                    'entry': entry,
-                    'parsed': parsed,
-                })
+                result['nerve_morphology'].append(
+                    {
+                        'entry': entry,
+                        'parsed': parsed,
+                    }
+                )
 
         elif basename.endswith('-RawFascicleTracking.graphml'):
             parsed = _parse_nerve_path(drp)
             if parsed:
-                result['graphml'].append({
-                    'entry': entry,
-                    'parsed': parsed,
-                })
+                result['graphml'].append(
+                    {
+                        'entry': entry,
+                        'parsed': parsed,
+                    }
+                )
 
         elif 'SummaryMorphology' in drp and basename.endswith('.csv'):
             parsed = _parse_summary_path(drp)
             if parsed:
-                result['summary'].append({
-                    'entry': entry,
-                    'parsed': parsed,
-                })
+                result['summary'].append(
+                    {
+                        'entry': entry,
+                        'parsed': parsed,
+                    }
+                )
 
         elif basename.endswith('-MicroCTWrapper.json'):
-            result['wrapper'].append({
-                'entry': entry,
-            })
+            result['wrapper'].append(
+                {
+                    'entry': entry,
+                }
+            )
 
     return result

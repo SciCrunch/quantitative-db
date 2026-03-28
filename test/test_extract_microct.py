@@ -75,14 +75,17 @@ EXPECTED_SUMMARY_DESC_QUANT = {
 # Fixtures — sample data for unit tests
 # ---------------------------------------------------------------------------
 
-SAMPLE_NERVE_CSV = textwrap.dedent("""\
+SAMPLE_NERVE_CSV = textwrap.dedent(
+    """\
     index,area,perimeter,eq_diameter,center_x,center_y,major_axis,minor_axis,angle
     0,100,50.0,11.28,256.5,128.3,15.2,10.1,45.0
     1,,,,,,,,
     2,200,75.5,16.0,260.1,130.5,20.3,14.7,30.5
-""")
+"""
+)
 
-SAMPLE_GRAPHML = textwrap.dedent("""\
+SAMPLE_GRAPHML = textwrap.dedent(
+    """\
     <?xml version="1.0" encoding="UTF-8"?>
     <graphml xmlns="http://graphml.graphdrawing.org/xmlns">
       <key id="d0" for="node" attr.name="area" attr.type="int"/>
@@ -139,20 +142,26 @@ SAMPLE_GRAPHML = textwrap.dedent("""\
         </edge>
       </graph>
     </graphml>
-""")
+"""
+)
 
-SAMPLE_BRANCH_CSV = textwrap.dedent("""\
+SAMPLE_BRANCH_CSV = textwrap.dedent(
+    """\
     subject,sample,branch_name,interlex_id,median_nerve_diam_mm,sd_nerve_diam_mm,median_nerve_area_mm2,sd_nerve_area_mm2,endo_area_mm2,num_fas,avg_fas_diam_mm,sd_fas_diam_mm,min_fas_diam_mm,max_fas_diam_mm,measurement_dist_mm,measurement_frame,target
     SR042,CL1,left_cervical_cardiac_branch,ILX:12345,0.5,0.1,0.196,0.05,0.12,3,0.15,0.03,0.1,0.2,5.0,42,cardiac
     SR042,CL2,left_superior_laryngeal_nerve,ILX:67890,0.8,0.15,0.503,0.08,0.35,5,0.22,0.04,0.15,0.3,8.2,67,laryngeal
-""")
+"""
+)
 
-SAMPLE_CRANIAL_CSV = textwrap.dedent("""\
+SAMPLE_CRANIAL_CSV = textwrap.dedent(
+    """\
     subject,sample,nerve_name,interlex_id,median_nerve_diam_mm,sd_nerve_diam_mm,median_nerve_area_mm2,sd_nerve_area_mm2,endo_area_mm2,num_fas,avg_fas_diam_mm,sd_fas_diam_mm,min_fas_diam_mm,max_fas_diam_mm,measurement_dist_mm,measurement_frame,target
     SR042,CL1,left_hypoglossal_nerve,ILX:11111,0.7,0.12,0.385,0.06,0.28,4,0.18,0.035,0.12,0.25,3.5,30,motor
-""")
+"""
+)
 
-SAMPLE_WRAPPER_JSON = textwrap.dedent("""\
+SAMPLE_WRAPPER_JSON = textwrap.dedent(
+    """\
     {
         "description": {
             "modality": "microct",
@@ -177,7 +186,8 @@ SAMPLE_WRAPPER_JSON = textwrap.dedent("""\
         "annotations": {},
         "transforms": {}
     }
-""")
+"""
+)
 
 
 # ---------------------------------------------------------------------------
@@ -185,12 +195,14 @@ SAMPLE_WRAPPER_JSON = textwrap.dedent("""\
 # ---------------------------------------------------------------------------
 
 SAMPLE_CURATION_EXPORT = {
-    'subjects': [{
-        'subject_id': 'sub-SR042',
-        'species': {'id': 'NCBITaxon:9606', 'label': 'Homo sapiens'},
-        'age': {'magnitude': 36, 'type': 'quantity', 'units': 'year'},
-        'sex': 'Male',
-    }],
+    'subjects': [
+        {
+            'subject_id': 'sub-SR042',
+            'species': {'id': 'NCBITaxon:9606', 'label': 'Homo sapiens'},
+            'age': {'magnitude': 36, 'type': 'quantity', 'units': 'year'},
+            'sex': 'Male',
+        }
+    ],
     'samples': [
         {
             'sample_id': 'sam-SR042-CL1',
@@ -246,7 +258,8 @@ class TestExtractMicroctEntities:
 
     def test_subjects_extracted(self):
         result = extract_microct_entities(
-            SAMPLE_CURATION_EXPORT, MICROCT_UUID,
+            SAMPLE_CURATION_EXPORT,
+            MICROCT_UUID,
         )
         vis = result['values_inst']
         subjects = [v for v in vis if v['type'] == 'subject']
@@ -259,7 +272,8 @@ class TestExtractMicroctEntities:
 
     def test_samples_extracted(self):
         result = extract_microct_entities(
-            SAMPLE_CURATION_EXPORT, MICROCT_UUID,
+            SAMPLE_CURATION_EXPORT,
+            MICROCT_UUID,
         )
         vis = result['values_inst']
         samples = [v for v in vis if v['type'] == 'sample']
@@ -273,7 +287,8 @@ class TestExtractMicroctEntities:
 
     def test_values_inst_keys(self):
         result = extract_microct_entities(
-            SAMPLE_CURATION_EXPORT, MICROCT_UUID,
+            SAMPLE_CURATION_EXPORT,
+            MICROCT_UUID,
         )
         required_keys = {'dataset', 'id_formal', 'type', 'desc_inst', 'id_sub'}
         for vi in result['values_inst']:
@@ -282,45 +297,34 @@ class TestExtractMicroctEntities:
     def test_parent_relationships(self):
         """Every sample has a parent edge pointing to its subject."""
         result = extract_microct_entities(
-            SAMPLE_CURATION_EXPORT, MICROCT_UUID,
+            SAMPLE_CURATION_EXPORT,
+            MICROCT_UUID,
         )
         parents = result['instance_parent']
         assert len(parents) == 3  # one per sample
 
-        sample_ids = {
-            v['id_formal']
-            for v in result['values_inst']
-            if v['type'] == 'sample'
-        }
+        sample_ids = {v['id_formal'] for v in result['values_inst'] if v['type'] == 'sample'}
         for p in parents:
             assert p['child'] in sample_ids
             assert p['parent'] == 'sub-SR042'
 
     def test_parent_edges_reference_valid_ids(self):
         result = extract_microct_entities(
-            SAMPLE_CURATION_EXPORT, MICROCT_UUID,
+            SAMPLE_CURATION_EXPORT,
+            MICROCT_UUID,
         )
         all_ids = {v['id_formal'] for v in result['values_inst']}
         for p in result['instance_parent']:
-            assert p['child'] in all_ids, (
-                f"Child {p['child']} not in values_inst"
-            )
-            assert p['parent'] in all_ids, (
-                f"Parent {p['parent']} not in values_inst"
-            )
+            assert p['child'] in all_ids, f"Child {p['child']} not in values_inst"
+            assert p['parent'] in all_ids, f"Parent {p['parent']} not in values_inst"
 
     def test_id_formal_naming(self):
         result = extract_microct_entities(
-            SAMPLE_CURATION_EXPORT, MICROCT_UUID,
+            SAMPLE_CURATION_EXPORT,
+            MICROCT_UUID,
         )
-        subjects = [
-            v for v in result['values_inst']
-            if v['type'] == 'subject'
-        ]
-        samples = [
-            v for v in result['values_inst']
-            if v['type'] == 'sample'
-        ]
+        subjects = [v for v in result['values_inst'] if v['type'] == 'subject']
+        samples = [v for v in result['values_inst'] if v['type'] == 'sample']
         for sub in subjects:
             assert sub['id_formal'].startswith('sub-')
         for sam in samples:
@@ -339,7 +343,10 @@ class TestParseNerveMorphology:
         self.obj_uuid = 'test-object-uuid'
         self.nerve_id = 'nerve-SR042-CL1-left_cervical_trunk'
         self.result = parse_nerve_morphology(
-            SAMPLE_NERVE_CSV, self.obj_uuid, MICROCT_UUID, self.nerve_id,
+            SAMPLE_NERVE_CSV,
+            self.obj_uuid,
+            MICROCT_UUID,
+            self.nerve_id,
         )
 
     def test_returns_list(self):
@@ -352,13 +359,15 @@ class TestParseNerveMorphology:
 
     def test_dict_structure(self):
         required_keys = {
-            'value', 'value_blob', 'object',
-            'desc_inst', 'desc_quant', 'instance',
+            'value',
+            'value_blob',
+            'object',
+            'desc_inst',
+            'desc_quant',
+            'instance',
         }
         for d in self.result:
-            assert required_keys.issubset(d.keys()), (
-                f"Missing keys: {required_keys - d.keys()}"
-            )
+            assert required_keys.issubset(d.keys()), f'Missing keys: {required_keys - d.keys()}'
 
     def test_instance_structure(self):
         for d in self.result:
@@ -380,24 +389,15 @@ class TestParseNerveMorphology:
     def test_values_stored_as_raw_pixels(self):
         """Values are stored in pixel-11um units (raw pixel values)."""
         # First row: area=100 pixels → stored as 100.0
-        area_dicts = [
-            d for d in self.result
-            if d['desc_quant'] == 'nerve cross section area pixel-11um'
-        ]
+        area_dicts = [d for d in self.result if d['desc_quant'] == 'nerve cross section area pixel-11um']
         assert len(area_dicts) == 2
         # Row 0: area=100
-        row0_area = [
-            d for d in area_dicts
-            if '-slice-0' in d['instance']['id_formal']
-        ]
+        row0_area = [d for d in area_dicts if '-slice-0' in d['instance']['id_formal']]
         assert len(row0_area) == 1
         assert row0_area[0]['value'] == 100.0
 
     def test_angle_stored_as_degrees(self):
-        angle_dicts = [
-            d for d in self.result
-            if d['desc_quant'] == 'nerve cross section angle degree'
-        ]
+        angle_dicts = [d for d in self.result if d['desc_quant'] == 'nerve cross section angle degree']
         assert len(angle_dicts) == 2
         values = sorted(d['value'] for d in angle_dicts)
         assert values == [30.5, 45.0]
@@ -435,14 +435,19 @@ class TestParseFascicleGraphml:
         self.obj_uuid = 'test-graphml-uuid'
         self.nerve_id = 'nerve-SR042-CL1-left_cervical_trunk'
         self.result = parse_fascicle_graphml(
-            SAMPLE_GRAPHML, self.obj_uuid, MICROCT_UUID, self.nerve_id,
+            SAMPLE_GRAPHML,
+            self.obj_uuid,
+            MICROCT_UUID,
+            self.nerve_id,
         )
 
     def test_returns_dict_with_expected_keys(self):
         assert isinstance(self.result, dict)
         expected_keys = {
-            'values_inst', 'instance_parent',
-            'values_quant', 'values_cat',
+            'values_inst',
+            'instance_parent',
+            'values_quant',
+            'values_cat',
         }
         assert set(self.result.keys()) == expected_keys
 
@@ -477,8 +482,12 @@ class TestParseFascicleGraphml:
 
     def test_node_measurement_keys(self):
         required_keys = {
-            'value', 'value_blob', 'object',
-            'desc_inst', 'desc_quant', 'instance',
+            'value',
+            'value_blob',
+            'object',
+            'desc_inst',
+            'desc_quant',
+            'instance',
         }
         for d in self.result['values_quant']:
             assert required_keys.issubset(d.keys())
@@ -491,8 +500,7 @@ class TestParseFascicleGraphml:
     def test_node_values_stored_raw(self):
         """Values stored as raw pixel values."""
         area_dicts = [
-            d for d in self.result['values_quant']
-            if d['desc_quant'] == 'fascicle cross section area pixel-11um'
+            d for d in self.result['values_quant'] if d['desc_quant'] == 'fascicle cross section area pixel-11um'
         ]
         assert len(area_dicts) == 3
         values = sorted(d['value'] for d in area_dicts)
@@ -590,10 +598,7 @@ class TestParseSummaryMorphology:
             'test-branch-uuid',
             MICROCT_UUID,
         )
-        diam_dicts = [
-            d for d in result['values_quant']
-            if d['desc_quant'] == 'median nerve diameter mm'
-        ]
+        diam_dicts = [d for d in result['values_quant'] if d['desc_quant'] == 'median nerve diameter mm']
         values = sorted(d['value'] for d in diam_dicts)
         assert values == [0.5, 0.8]
 
@@ -613,8 +618,12 @@ class TestParseSummaryMorphology:
             MICROCT_UUID,
         )
         required_keys = {
-            'value', 'value_blob', 'object',
-            'desc_inst', 'desc_quant', 'instance',
+            'value',
+            'value_blob',
+            'object',
+            'desc_inst',
+            'desc_quant',
+            'instance',
         }
         for d in result['values_quant']:
             assert required_keys.issubset(d.keys())
@@ -631,7 +640,8 @@ class TestParseDataWrapper:
 
     def test_returns_metadata(self):
         result = parse_data_wrapper(
-            SAMPLE_WRAPPER_JSON, 'test-wrapper-uuid',
+            SAMPLE_WRAPPER_JSON,
+            'test-wrapper-uuid',
         )
         assert result['subject_id'] == 'SR042'
         assert result['sample_id'] == 'CL1'
@@ -640,7 +650,8 @@ class TestParseDataWrapper:
 
     def test_pixel_properties(self):
         result = parse_data_wrapper(
-            SAMPLE_WRAPPER_JSON, 'test-wrapper-uuid',
+            SAMPLE_WRAPPER_JSON,
+            'test-wrapper-uuid',
         )
         pp = result['pixel_properties']
         assert pp['dim'] == 3
@@ -683,11 +694,13 @@ class TestExtractMicroctObjects:
 
     def test_object_structure(self):
         pm = {
-            'data': [{
-                'remote_id': 'package:aaaa-bbbb',
-                'file_id': 123,
-                'basename': 'file.csv',
-            }],
+            'data': [
+                {
+                    'remote_id': 'package:aaaa-bbbb',
+                    'file_id': 123,
+                    'basename': 'file.csv',
+                }
+            ],
         }
         result = extract_microct_objects(pm)
         obj = result['objects'][0]
@@ -724,15 +737,17 @@ class TestClassifyPathMetadataFiles:
 
     def test_classifies_nerve_morphology(self):
         pm = {
-            'data': [{
-                'basename': 'SR042-CL1-left_cervical_trunk-NerveMorphology.csv',
-                'dataset_relative_path': (
-                    'derivative/sub-SR042/NerveMorphology/'
-                    'SR042-VagalTrunks/SR042-left_cervical_trunk/'
-                    'SR042-CL1-left_cervical_trunk-NerveMorphology.csv'
-                ),
-                'remote_id': 'package:abc123',
-            }],
+            'data': [
+                {
+                    'basename': 'SR042-CL1-left_cervical_trunk-NerveMorphology.csv',
+                    'dataset_relative_path': (
+                        'derivative/sub-SR042/NerveMorphology/'
+                        'SR042-VagalTrunks/SR042-left_cervical_trunk/'
+                        'SR042-CL1-left_cervical_trunk-NerveMorphology.csv'
+                    ),
+                    'remote_id': 'package:abc123',
+                }
+            ],
         }
         result = classify_path_metadata_files(pm)
         assert len(result['nerve_morphology']) == 1
@@ -743,29 +758,30 @@ class TestClassifyPathMetadataFiles:
 
     def test_classifies_graphml(self):
         pm = {
-            'data': [{
-                'basename': 'SR042-CL1-left_cervical_trunk-RawFascicleTracking.graphml',
-                'dataset_relative_path': (
-                    'derivative/sub-SR042/FascicleMorphology/'
-                    'SR042-VagalTrunks/SR042-left_cervical_trunk/'
-                    'SR042-CL1-left_cervical_trunk-RawFascicleTracking.graphml'
-                ),
-                'remote_id': 'package:def456',
-            }],
+            'data': [
+                {
+                    'basename': 'SR042-CL1-left_cervical_trunk-RawFascicleTracking.graphml',
+                    'dataset_relative_path': (
+                        'derivative/sub-SR042/FascicleMorphology/'
+                        'SR042-VagalTrunks/SR042-left_cervical_trunk/'
+                        'SR042-CL1-left_cervical_trunk-RawFascicleTracking.graphml'
+                    ),
+                    'remote_id': 'package:def456',
+                }
+            ],
         }
         result = classify_path_metadata_files(pm)
         assert len(result['graphml']) == 1
 
     def test_classifies_summary(self):
         pm = {
-            'data': [{
-                'basename': 'SR042-left-BranchMorph.csv',
-                'dataset_relative_path': (
-                    'derivative/sub-SR042/SummaryMorphology/'
-                    'SR042-left-BranchMorph.csv'
-                ),
-                'remote_id': 'package:ghi789',
-            }],
+            'data': [
+                {
+                    'basename': 'SR042-left-BranchMorph.csv',
+                    'dataset_relative_path': ('derivative/sub-SR042/SummaryMorphology/' 'SR042-left-BranchMorph.csv'),
+                    'remote_id': 'package:ghi789',
+                }
+            ],
         }
         result = classify_path_metadata_files(pm)
         assert len(result['summary']) == 1
@@ -774,14 +790,13 @@ class TestClassifyPathMetadataFiles:
 
     def test_classifies_wrapper(self):
         pm = {
-            'data': [{
-                'basename': 'SR042-CL1-MicroCTWrapper.json',
-                'dataset_relative_path': (
-                    'derivative/sub-SR042/DataWrapper/'
-                    'SR042-CL1-MicroCTWrapper.json'
-                ),
-                'remote_id': 'package:jkl012',
-            }],
+            'data': [
+                {
+                    'basename': 'SR042-CL1-MicroCTWrapper.json',
+                    'dataset_relative_path': ('derivative/sub-SR042/DataWrapper/' 'SR042-CL1-MicroCTWrapper.json'),
+                    'remote_id': 'package:jkl012',
+                }
+            ],
         }
         result = classify_path_metadata_files(pm)
         assert len(result['wrapper']) == 1
@@ -798,29 +813,38 @@ class TestFKLabelValidity:
     def test_all_desc_inst_labels_are_known(self):
         """All desc_inst labels from all functions are from known set."""
         known_desc_inst = {
-            'human', 'tissue', 'nerve', 'nerve-cross-section',
-            'fascicle-cross-section', 'sample',
+            'human',
+            'tissue',
+            'nerve',
+            'nerve-cross-section',
+            'fascicle-cross-section',
+            'sample',
         }
 
         # Entity extraction
         entities = extract_microct_entities(
-            SAMPLE_CURATION_EXPORT, MICROCT_UUID,
+            SAMPLE_CURATION_EXPORT,
+            MICROCT_UUID,
         )
         for vi in entities['values_inst']:
-            assert vi['desc_inst'] in known_desc_inst, (
-                f"Unknown desc_inst: {vi['desc_inst']}"
-            )
+            assert vi['desc_inst'] in known_desc_inst, f"Unknown desc_inst: {vi['desc_inst']}"
 
         # Nerve morphology
         nerve_vqs = parse_nerve_morphology(
-            SAMPLE_NERVE_CSV, 'obj1', MICROCT_UUID, 'nerve-test',
+            SAMPLE_NERVE_CSV,
+            'obj1',
+            MICROCT_UUID,
+            'nerve-test',
         )
         for vq in nerve_vqs:
             assert vq['desc_inst'] in known_desc_inst
 
         # GraphML
         graphml_result = parse_fascicle_graphml(
-            SAMPLE_GRAPHML, 'obj2', MICROCT_UUID, 'nerve-test',
+            SAMPLE_GRAPHML,
+            'obj2',
+            MICROCT_UUID,
+            'nerve-test',
         )
         for vi in graphml_result['values_inst']:
             assert vi['desc_inst'] in known_desc_inst
@@ -831,40 +855,50 @@ class TestFKLabelValidity:
 
     def test_all_desc_quant_labels_match_schema(self):
         """All desc_quant labels are from the schema."""
-        all_desc_quant = (
-            EXPECTED_NERVE_DESC_QUANT
-            | EXPECTED_FASCICLE_DESC_QUANT
-            | EXPECTED_SUMMARY_DESC_QUANT
-        )
+        all_desc_quant = EXPECTED_NERVE_DESC_QUANT | EXPECTED_FASCICLE_DESC_QUANT | EXPECTED_SUMMARY_DESC_QUANT
 
         nerve_vqs = parse_nerve_morphology(
-            SAMPLE_NERVE_CSV, 'obj1', MICROCT_UUID, 'nerve-test',
+            SAMPLE_NERVE_CSV,
+            'obj1',
+            MICROCT_UUID,
+            'nerve-test',
         )
         for vq in nerve_vqs:
             assert vq['desc_quant'] in all_desc_quant
 
         graphml_result = parse_fascicle_graphml(
-            SAMPLE_GRAPHML, 'obj2', MICROCT_UUID, 'nerve-test',
+            SAMPLE_GRAPHML,
+            'obj2',
+            MICROCT_UUID,
+            'nerve-test',
         )
         for vq in graphml_result['values_quant']:
             assert vq['desc_quant'] in all_desc_quant
 
         summary_result = parse_summary_morphology(
-            SAMPLE_BRANCH_CSV, 'obj3', MICROCT_UUID,
+            SAMPLE_BRANCH_CSV,
+            'obj3',
+            MICROCT_UUID,
         )
         for vq in summary_result['values_quant']:
             assert vq['desc_quant'] in all_desc_quant
 
     def test_all_desc_cat_labels_match_schema(self):
         graphml_result = parse_fascicle_graphml(
-            SAMPLE_GRAPHML, 'obj2', MICROCT_UUID, 'nerve-test',
+            SAMPLE_GRAPHML,
+            'obj2',
+            MICROCT_UUID,
+            'nerve-test',
         )
         for vc in graphml_result['values_cat']:
             assert vc['desc_cat'] in EXPECTED_EDGE_DESC_CAT
 
     def test_controlled_term_values_are_known(self):
         graphml_result = parse_fascicle_graphml(
-            SAMPLE_GRAPHML, 'obj2', MICROCT_UUID, 'nerve-test',
+            SAMPLE_GRAPHML,
+            'obj2',
+            MICROCT_UUID,
+            'nerve-test',
         )
         for vc in graphml_result['values_cat']:
             assert vc['value_controlled'] in ('true', 'false')
@@ -885,14 +919,8 @@ class TestLiveCassavaIntegration:
     def test_entity_counts(self, cassava_data):
         ce, pm = cassava_data
         result = extract_microct_entities(ce, MICROCT_UUID)
-        subjects = [
-            v for v in result['values_inst']
-            if v['type'] == 'subject'
-        ]
-        samples = [
-            v for v in result['values_inst']
-            if v['type'] == 'sample'
-        ]
+        subjects = [v for v in result['values_inst'] if v['type'] == 'subject']
+        samples = [v for v in result['values_inst'] if v['type'] == 'sample']
         assert len(subjects) == 1
         assert len(samples) == 13
         assert len(result['instance_parent']) == 13

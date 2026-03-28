@@ -1,0 +1,45 @@
+{
+  "featureId": "extraction-module",
+  "reviewedAt": "2026-03-28T05:52:55Z",
+  "commitId": "92fda623f3a9f3f9d5f405bdabafcd20ccb2b554",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The commit adds the requested extraction module and a broad test file, but it does not satisfy the reviewed feature contract. Both pixel-based parsers keep raw pixel counts instead of emitting the converted um/um2 values required by `features.json` and `validation-contract.md`, and the tests lock in that incorrect behavior rather than checking the required conversions.",
+    "issues": [
+      {
+        "file": "quantdb/extract_microct.py",
+        "line": 278,
+        "severity": "blocking",
+        "description": "The feature contract requires MicroCT pixel measurements to be converted before emission (`features.json:141` and `validation-contract.md:62-69`), but `parse_nerve_morphology()` explicitly stores raw pixel values (`quantdb/extract_microct.py:278-279`) and then forwards `float(raw)` unchanged into `value`/`value_blob` (`quantdb/extract_microct.py:321-325`). For example, an area of 100 pixels should become 12996.0 um2 per the contract, not remain 100.0."
+      },
+      {
+        "file": "quantdb/extract_microct.py",
+        "line": 354,
+        "severity": "blocking",
+        "description": "The same contract gap exists in `parse_fascicle_graphml()`: the docstring says node measurements are stored as raw pixel values (`quantdb/extract_microct.py:354-355`) and the implementation writes `float(raw)` directly (`quantdb/extract_microct.py:412-416`). `features.json:141` and `validation-contract.md:67-69` require the GraphML node measurements to use the same pixel-to-um/um2 conversions as NerveMorphology."
+      },
+      {
+        "file": "test/test_extract_microct.py",
+        "line": 380,
+        "severity": "non_blocking",
+        "description": "The new tests do not verify the required conversion behavior. `test_values_stored_as_raw_pixels()` asserts that 100 input pixels stays 100.0 (`test/test_extract_microct.py:380-395`), and `test_node_values_stored_raw()` likewise expects unconverted GraphML areas (`test/test_extract_microct.py:491-499`). Because the feature explicitly says tests must verify pixel conversion (`features.json:141`), this suite would not catch the contract violation above."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "knowledge",
+      "observation": "The mission's shared state is internally inconsistent about MicroCT measurement units. The reviewed feature and validation contract require converted um/um2 values, but the preceding schema feature and `sql/inserts_microct.sql` define `pixel-11um` descriptors instead. That mismatch makes it unclear whether extraction should convert values or preserve raw pixel counts.",
+      "evidence": "`features.json:141` and `validation-contract.md:62-69` require pixel-to-um/um2 conversion, while `features.json:97` and `sql/inserts_microct.sql:67-165` define the per-slice descriptors in `pixel-11um` units."
+    },
+    {
+      "area": "skills",
+      "observation": "The worker did not actually follow the db-pipeline-worker TDD procedure, but the handoff still reported `followedProcedure: true`. That makes the skill-feedback signal unreliable for future scrutiny.",
+      "evidence": "`db-pipeline-worker/SKILL.md:35-39` says to write failing tests before any implementation code, but the transcript skeleton for session `688509d4-01f3-4b2b-aea1-6486031b7011` shows `Create quantdb/extract_microct.py` before `Create test/test_extract_microct.py`; the handoff JSON still marks `skillFeedback.followedProcedure` as true."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Fail. Commit `92fda62` adds the extraction module and tests, but the pixel-based parsers emit raw pixel values instead of the converted um/um2 values required by the reviewed feature contract, and the tests reinforce that incorrect behavior."
+}

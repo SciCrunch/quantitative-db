@@ -91,10 +91,17 @@ EDGE_DESCRIPTORS_CAT = [
 def _psql(*, sql=None, file=None, database='quantdb_test'):
     """Run psql against quantdb_test."""
     cmd = [
-        'psql', '-U', 'postgres',
-        '-h', 'localhost', '-p', '5432',
-        '-d', database,
-        '-v', 'ON_ERROR_STOP=on',
+        'psql',
+        '-U',
+        'postgres',
+        '-h',
+        'localhost',
+        '-p',
+        '5432',
+        '-d',
+        database,
+        '-v',
+        'ON_ERROR_STOP=on',
     ]
     if file is not None:
         cmd.extend(['-f', str(file)])
@@ -106,9 +113,7 @@ def _psql(*, sql=None, file=None, database='quantdb_test'):
 @pytest.fixture(scope='module')
 def apply_microct_sql(rebuild_database):
     """Apply inserts_microct.sql to quantdb_test once per module."""
-    assert _INSERTS_MICROCT.exists(), (
-        f'Missing SQL file: {_INSERTS_MICROCT}'
-    )
+    assert _INSERTS_MICROCT.exists(), f'Missing SQL file: {_INSERTS_MICROCT}'
     _psql(file=_INSERTS_MICROCT)
 
 
@@ -153,18 +158,12 @@ def session(reflected: ReflectedModels) -> Generator[Session, None, None]:
 
 class TestUnits:
     def test_mm_unit_exists(self, session):
-        row = session.execute(
-            sql_text("SELECT id, label FROM quantdb.units WHERE label = 'mm'")
-        ).fetchone()
+        row = session.execute(sql_text("SELECT id, label FROM quantdb.units WHERE label = 'mm'")).fetchone()
         assert row is not None, "Unit 'mm' not found"
         assert row.label == 'mm'
 
     def test_mm2_unit_exists(self, session):
-        row = session.execute(
-            sql_text(
-                "SELECT id, label FROM quantdb.units WHERE label = 'mm2'"
-            )
-        ).fetchone()
+        row = session.execute(sql_text("SELECT id, label FROM quantdb.units WHERE label = 'mm2'")).fetchone()
         assert row is not None, "Unit 'mm2' not found"
         assert row.label == 'mm2'
 
@@ -176,16 +175,9 @@ class TestUnits:
 
 class TestAggType:
     def test_sd_in_quant_agg_type(self, session):
-        rows = session.execute(
-            sql_text(
-                'SELECT unnest(enum_range('
-                'NULL::quantdb.quant_agg_type)) AS val'
-            )
-        ).fetchall()
+        rows = session.execute(sql_text('SELECT unnest(enum_range(' 'NULL::quantdb.quant_agg_type)) AS val')).fetchall()
         values = [r.val for r in rows]
-        assert 'sd' in values, (
-            f"'sd' not found in quant_agg_type, got: {values}"
-        )
+        assert 'sd' in values, f"'sd' not found in quant_agg_type, got: {values}"
 
 
 # ---------------------------------------------------------------------------
@@ -197,10 +189,7 @@ class TestNerveMorphologyDescriptors:
     @pytest.mark.parametrize('label', NERVE_MORPH_DESCRIPTORS)
     def test_nerve_descriptor_exists(self, session, label):
         row = session.execute(
-            sql_text(
-                'SELECT id, label FROM quantdb.descriptors_quant '
-                "WHERE label = :lbl"
-            ),
+            sql_text('SELECT id, label FROM quantdb.descriptors_quant ' 'WHERE label = :lbl'),
             {'lbl': label},
         ).fetchone()
         assert row is not None, f"Descriptor '{label}' not found"
@@ -212,13 +201,11 @@ class TestNerveMorphologyDescriptors:
                 'SELECT dq.unit, u.label AS unit_label '
                 'FROM quantdb.descriptors_quant dq '
                 'JOIN quantdb.units u ON dq.unit = u.id '
-                "WHERE dq.label = :lbl"
+                'WHERE dq.label = :lbl'
             ),
             {'lbl': label},
         ).fetchone()
-        assert row is not None, (
-            f"Descriptor '{label}' has NULL or invalid unit FK"
-        )
+        assert row is not None, f"Descriptor '{label}' has NULL or invalid unit FK"
 
     @pytest.mark.parametrize('label', NERVE_MORPH_DESCRIPTORS)
     def test_nerve_descriptor_has_valid_aspect(self, session, label):
@@ -227,13 +214,11 @@ class TestNerveMorphologyDescriptors:
                 'SELECT dq.aspect, a.label AS aspect_label '
                 'FROM quantdb.descriptors_quant dq '
                 'JOIN quantdb.aspects a ON dq.aspect = a.id '
-                "WHERE dq.label = :lbl"
+                'WHERE dq.label = :lbl'
             ),
             {'lbl': label},
         ).fetchone()
-        assert row is not None, (
-            f"Descriptor '{label}' has NULL or invalid aspect FK"
-        )
+        assert row is not None, f"Descriptor '{label}' has NULL or invalid aspect FK"
 
     @pytest.mark.parametrize('label', NERVE_MORPH_DESCRIPTORS)
     def test_nerve_descriptor_has_valid_domain(self, session, label):
@@ -242,13 +227,11 @@ class TestNerveMorphologyDescriptors:
                 'SELECT dq.domain, di.label AS domain_label '
                 'FROM quantdb.descriptors_quant dq '
                 'JOIN quantdb.descriptors_inst di ON dq.domain = di.id '
-                "WHERE dq.label = :lbl"
+                'WHERE dq.label = :lbl'
             ),
             {'lbl': label},
         ).fetchone()
-        assert row is not None, (
-            f"Descriptor '{label}' has NULL or invalid domain FK"
-        )
+        assert row is not None, f"Descriptor '{label}' has NULL or invalid domain FK"
         assert row.domain_label == 'nerve-cross-section'
 
 
@@ -261,10 +244,7 @@ class TestFascicleMorphologyDescriptors:
     @pytest.mark.parametrize('label', FASCICLE_MORPH_DESCRIPTORS)
     def test_fascicle_descriptor_exists(self, session, label):
         row = session.execute(
-            sql_text(
-                'SELECT id, label FROM quantdb.descriptors_quant '
-                "WHERE label = :lbl"
-            ),
+            sql_text('SELECT id, label FROM quantdb.descriptors_quant ' 'WHERE label = :lbl'),
             {'lbl': label},
         ).fetchone()
         assert row is not None, f"Descriptor '{label}' not found"
@@ -276,13 +256,11 @@ class TestFascicleMorphologyDescriptors:
                 'SELECT dq.unit, u.label AS unit_label '
                 'FROM quantdb.descriptors_quant dq '
                 'JOIN quantdb.units u ON dq.unit = u.id '
-                "WHERE dq.label = :lbl"
+                'WHERE dq.label = :lbl'
             ),
             {'lbl': label},
         ).fetchone()
-        assert row is not None, (
-            f"Descriptor '{label}' has NULL or invalid unit FK"
-        )
+        assert row is not None, f"Descriptor '{label}' has NULL or invalid unit FK"
 
     @pytest.mark.parametrize('label', FASCICLE_MORPH_DESCRIPTORS)
     def test_fascicle_descriptor_has_valid_aspect(self, session, label):
@@ -291,13 +269,11 @@ class TestFascicleMorphologyDescriptors:
                 'SELECT dq.aspect, a.label AS aspect_label '
                 'FROM quantdb.descriptors_quant dq '
                 'JOIN quantdb.aspects a ON dq.aspect = a.id '
-                "WHERE dq.label = :lbl"
+                'WHERE dq.label = :lbl'
             ),
             {'lbl': label},
         ).fetchone()
-        assert row is not None, (
-            f"Descriptor '{label}' has NULL or invalid aspect FK"
-        )
+        assert row is not None, f"Descriptor '{label}' has NULL or invalid aspect FK"
 
     @pytest.mark.parametrize('label', FASCICLE_MORPH_DESCRIPTORS)
     def test_fascicle_descriptor_has_valid_domain(self, session, label):
@@ -306,13 +282,11 @@ class TestFascicleMorphologyDescriptors:
                 'SELECT dq.domain, di.label AS domain_label '
                 'FROM quantdb.descriptors_quant dq '
                 'JOIN quantdb.descriptors_inst di ON dq.domain = di.id '
-                "WHERE dq.label = :lbl"
+                'WHERE dq.label = :lbl'
             ),
             {'lbl': label},
         ).fetchone()
-        assert row is not None, (
-            f"Descriptor '{label}' has NULL or invalid domain FK"
-        )
+        assert row is not None, f"Descriptor '{label}' has NULL or invalid domain FK"
         assert row.domain_label == 'fascicle-cross-section'
 
 
@@ -325,60 +299,42 @@ class TestSummaryMorphologyDescriptors:
     @pytest.mark.parametrize('label', SUMMARY_MORPH_DESCRIPTORS)
     def test_summary_descriptor_exists(self, session, label):
         row = session.execute(
-            sql_text(
-                'SELECT id, label FROM quantdb.descriptors_quant '
-                "WHERE label = :lbl"
-            ),
+            sql_text('SELECT id, label FROM quantdb.descriptors_quant ' 'WHERE label = :lbl'),
             {'lbl': label},
         ).fetchone()
         assert row is not None, f"Descriptor '{label}' not found"
 
     def test_mm_unit_descriptors(self, session):
         """Summary descriptors with mm should use the mm unit."""
-        mm_labels = [
-            lbl for lbl in SUMMARY_MORPH_DESCRIPTORS if 'mm' in lbl
-            and 'mm2' not in lbl
-        ]
+        mm_labels = [lbl for lbl in SUMMARY_MORPH_DESCRIPTORS if 'mm' in lbl and 'mm2' not in lbl]
         for label in mm_labels:
             row = session.execute(
                 sql_text(
                     'SELECT u.label AS unit_label '
                     'FROM quantdb.descriptors_quant dq '
                     'JOIN quantdb.units u ON dq.unit = u.id '
-                    "WHERE dq.label = :lbl"
+                    'WHERE dq.label = :lbl'
                 ),
                 {'lbl': label},
             ).fetchone()
-            assert row is not None, (
-                f"Descriptor '{label}' unit FK invalid"
-            )
-            assert row.unit_label == 'mm', (
-                f"Descriptor '{label}' expected unit 'mm', "
-                f"got '{row.unit_label}'"
-            )
+            assert row is not None, f"Descriptor '{label}' unit FK invalid"
+            assert row.unit_label == 'mm', f"Descriptor '{label}' expected unit 'mm', " f"got '{row.unit_label}'"
 
     def test_mm2_unit_descriptors(self, session):
         """Summary descriptors with mm2 should use the mm2 unit."""
-        mm2_labels = [
-            lbl for lbl in SUMMARY_MORPH_DESCRIPTORS if 'mm2' in lbl
-        ]
+        mm2_labels = [lbl for lbl in SUMMARY_MORPH_DESCRIPTORS if 'mm2' in lbl]
         for label in mm2_labels:
             row = session.execute(
                 sql_text(
                     'SELECT u.label AS unit_label '
                     'FROM quantdb.descriptors_quant dq '
                     'JOIN quantdb.units u ON dq.unit = u.id '
-                    "WHERE dq.label = :lbl"
+                    'WHERE dq.label = :lbl'
                 ),
                 {'lbl': label},
             ).fetchone()
-            assert row is not None, (
-                f"Descriptor '{label}' unit FK invalid"
-            )
-            assert row.unit_label == 'mm2', (
-                f"Descriptor '{label}' expected unit 'mm2', "
-                f"got '{row.unit_label}'"
-            )
+            assert row is not None, f"Descriptor '{label}' unit FK invalid"
+            assert row.unit_label == 'mm2', f"Descriptor '{label}' expected unit 'mm2', " f"got '{row.unit_label}'"
 
     @pytest.mark.parametrize('label', SUMMARY_MORPH_DESCRIPTORS)
     def test_summary_descriptor_has_valid_aspect(self, session, label):
@@ -387,13 +343,11 @@ class TestSummaryMorphologyDescriptors:
                 'SELECT dq.aspect, a.label AS aspect_label '
                 'FROM quantdb.descriptors_quant dq '
                 'JOIN quantdb.aspects a ON dq.aspect = a.id '
-                "WHERE dq.label = :lbl"
+                'WHERE dq.label = :lbl'
             ),
             {'lbl': label},
         ).fetchone()
-        assert row is not None, (
-            f"Descriptor '{label}' has NULL or invalid aspect FK"
-        )
+        assert row is not None, f"Descriptor '{label}' has NULL or invalid aspect FK"
 
 
 # ---------------------------------------------------------------------------
@@ -405,16 +359,11 @@ class TestEdgeDescriptorsCat:
     @pytest.mark.parametrize('label', EDGE_DESCRIPTORS_CAT)
     def test_edge_descriptor_exists(self, session, label):
         row = session.execute(
-            sql_text(
-                'SELECT id, label, range FROM quantdb.descriptors_cat '
-                "WHERE label = :lbl"
-            ),
+            sql_text('SELECT id, label, range FROM quantdb.descriptors_cat ' 'WHERE label = :lbl'),
             {'lbl': label},
         ).fetchone()
         assert row is not None, f"Descriptor_cat '{label}' not found"
-        assert row.range == 'controlled', (
-            f"Expected range 'controlled', got '{row.range}'"
-        )
+        assert row.range == 'controlled', f"Expected range 'controlled', got '{row.range}'"
 
 
 # ---------------------------------------------------------------------------
@@ -432,9 +381,7 @@ class TestFKIntegrity:
                 'WHERE dq.unit IS NOT NULL AND u.id IS NULL'
             )
         ).fetchall()
-        assert len(rows) == 0, (
-            f'Orphan unit FKs: {[r.label for r in rows]}'
-        )
+        assert len(rows) == 0, f'Orphan unit FKs: {[r.label for r in rows]}'
 
     def test_no_orphan_descriptors_quant_aspect(self, session):
         """Every descriptors_quant with non-null aspect has valid FK."""
@@ -445,9 +392,7 @@ class TestFKIntegrity:
                 'WHERE dq.aspect IS NOT NULL AND a.id IS NULL'
             )
         ).fetchall()
-        assert len(rows) == 0, (
-            f'Orphan aspect FKs: {[r.label for r in rows]}'
-        )
+        assert len(rows) == 0, f'Orphan aspect FKs: {[r.label for r in rows]}'
 
     def test_no_orphan_descriptors_quant_domain(self, session):
         """Every descriptors_quant with non-null domain has valid FK."""
@@ -459,23 +404,16 @@ class TestFKIntegrity:
                 'WHERE dq.domain IS NOT NULL AND di.id IS NULL'
             )
         ).fetchall()
-        assert len(rows) == 0, (
-            f'Orphan domain FKs: {[r.label for r in rows]}'
-        )
+        assert len(rows) == 0, f'Orphan domain FKs: {[r.label for r in rows]}'
 
     def test_boolean_controlled_terms_exist(self, session):
         """Boolean controlled terms 'true' and 'false' must exist."""
         for val in ('true', 'false'):
             row = session.execute(
-                sql_text(
-                    'SELECT id FROM quantdb.controlled_terms '
-                    "WHERE label = :lbl"
-                ),
+                sql_text('SELECT id FROM quantdb.controlled_terms ' 'WHERE label = :lbl'),
                 {'lbl': val},
             ).fetchone()
-            assert row is not None, (
-                f"Controlled term '{val}' not found"
-            )
+            assert row is not None, f"Controlled term '{val}' not found"
 
 
 # ---------------------------------------------------------------------------
@@ -499,15 +437,11 @@ class TestIdempotency:
 class TestNewAspects:
     @pytest.mark.parametrize(
         'label',
-        ['major-axis', 'minor-axis', 'count-fascicle',
-         'area-endoneurial', 'frame-index'],
+        ['major-axis', 'minor-axis', 'count-fascicle', 'area-endoneurial', 'frame-index'],
     )
     def test_new_aspect_exists(self, session, label):
         row = session.execute(
-            sql_text(
-                'SELECT id, label FROM quantdb.aspects '
-                "WHERE label = :lbl"
-            ),
+            sql_text('SELECT id, label FROM quantdb.aspects ' 'WHERE label = :lbl'),
             {'lbl': label},
         ).fetchone()
         assert row is not None, f"Aspect '{label}' not found"
@@ -528,10 +462,8 @@ class TestNewAspects:
                 'FROM quantdb.aspect_parent ap '
                 'JOIN quantdb.aspects ac ON ap.id = ac.id '
                 'JOIN quantdb.aspects ap2 ON ap.parent = ap2.id '
-                "WHERE ac.label = :child AND ap2.label = :parent"
+                'WHERE ac.label = :child AND ap2.label = :parent'
             ),
             {'child': child, 'parent': parent},
         ).fetchone()
-        assert row is not None, (
-            f"aspect_parent entry ({child} -> {parent}) not found"
-        )
+        assert row is not None, f'aspect_parent entry ({child} -> {parent}) not found'
