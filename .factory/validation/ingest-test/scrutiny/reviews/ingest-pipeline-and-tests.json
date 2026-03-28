@@ -1,44 +1,44 @@
 {
   "featureId": "ingest-pipeline-and-tests",
-  "reviewedAt": "2026-03-28T06:47:05Z",
+  "reviewedAt": "2026-03-28T06:55:07Z",
   "commitId": "7f84110",
   "transcriptSkeletonReviewed": true,
   "diffReviewed": true,
   "status": "fail",
   "codeReview": {
-    "summary": "The new ingestion module broadly follows the existing `ingest_v2.py` patterns, but the reviewed feature still misses a core contract requirement. The new test suite seeds the database with synthetic dicts instead of running the required cassava-backed extraction -> ingest path, so `VAL-CROSS-002` is not actually exercised and the suite masks real interface mismatches between `extract_microct.py` and `ingest_microct.py`.",
+    "summary": "The new ingestion helpers generally mirror the existing ingest_v2 patterns, but the feature still misses the contractually required extraction-backed end-to-end proof. The added tests seed the database with synthetic dicts instead of the real extract_microct.py outputs, so VAL-CROSS-002 is not actually exercised and the suite hides concrete interface mismatches between extraction and ingestion.",
     "issues": [
       {
         "file": "test/test_ingest_microct.py",
         "line": 480,
         "severity": "blocking",
-        "description": "This feature was required to prove the end-to-end `schema SQL -> extract from cassava -> ingest -> verify -> delete -> re-ingest -> verify` flow (`features.json:212-233` and `validation-contract.md:123-126`). Instead, the module advertises up front that it uses synthetic data (`test/test_ingest_microct.py:3-5`), imports only `MICROCT_UUID` from `extract_microct.py` (`test/test_ingest_microct.py:24`), builds `_build_synthetic_data()` (`test/test_ingest_microct.py:74-401`), and loads that fixture directly in `microct_ingested` (`test/test_ingest_microct.py:465-481`). `test_full_pipeline()` then just re-asserts counts after that synthetic fixture has already run (`test/test_ingest_microct.py:955-975`). Because the real extraction module is never exercised, the suite misses that its output is not directly ingestable today: `extract_microct_objects()` returns `objects` rows keyed as `uuid`/`file_id` (`quantdb/extract_microct.py:949-957`) while `ingest_microct()` expects `id`/`id_file` (`quantdb/ingest_microct.py:72-77,425-426`), and `extract_microct_entities()` emits `instance_parent` rows as `{'child', 'parent'}` (`quantdb/extract_microct.py:186-189,252-269`) while `ingest_microct()` expects nested `{'id': ..., 'parent': ...}` dicts (`quantdb/ingest_microct.py:471-477`). The promised extraction->ingest path therefore remains unimplemented/unproven."
+        "description": "The milestone contract requires `schema SQL -> extract from cassava -> ingest -> verify -> delete -> re-ingest -> verify` (`features.json:213` and `validation-contract.md:162`), but this suite never runs the real extraction path. The test module explicitly says it uses synthetic data (`test/test_ingest_microct.py:3-5`), only imports `MICROCT_UUID` from `extract_microct.py` (`test/test_ingest_microct.py:24`), constructs `_build_synthetic_data()` (`test/test_ingest_microct.py:74-401`), feeds that directly into `ingest_microct()` in `microct_ingested` (`test/test_ingest_microct.py:465-481`), and `test_full_pipeline()` only rechecks counts after that fixture (`test/test_ingest_microct.py:955-971`). This misses real integration breakage: `extract_microct_objects()` emits object rows as `{'uuid', 'file_id', 'id_type'}` (`quantdb/extract_microct.py:931-957`) while `ingest_microct()`/`Ingest.batch('objects')` use `id`/`id_file` keys (`quantdb/ingest_microct.py:74-77,426`), and `extract_microct_entities()` emits `instance_parent` entries as `{'child', 'parent'}` (`quantdb/extract_microct.py:188,252-269`) while `ingest_microct()` expects nested `{'id': {...}, 'parent': {...}}` records (`quantdb/ingest_microct.py:470-477`). As written, the promised extraction->ingest flow is neither implemented nor verified."
       },
       {
         "file": "test/test_ingest_microct.py",
         "line": 876,
         "severity": "non_blocking",
-        "description": "The `test_delete_preserves_other_data` coverage is narrower than the feature contract. `test_f006_unaffected()` only checks two post-run counts (`values_inst` and `dataset_object`) against hard-coded numbers (`test/test_ingest_microct.py:876-879`) and never captures a pre-delete baseline or verifies the other tables called out in the contract (`validation-contract.md:104-106`). A regression that touched f006 `values_quant`, `values_cat`, or `obj_desc_*` rows while leaving those two counts unchanged would still pass."
+        "description": "The f006-preservation test is weaker than the feature contract. `test_f006_unaffected()` only asserts fixed post-run counts for `values_inst` and `dataset_object` (`test/test_ingest_microct.py:876-878`) instead of taking a before/after baseline across the other affected tables mentioned in `VAL-DELETE-002`. A regression that altered f006 `values_quant`, `values_cat`, or `obj_desc_*` rows while leaving those two counts unchanged would still pass."
       }
     ]
   },
   "sharedStateObservations": [
     {
       "area": "skills",
-      "observation": "The `db-pipeline-worker` skill does not document a key repo reality for MicroCT work: public cassava access gives metadata JSONs, but not the CSV/GraphML file bodies needed for a live end-to-end ingest test. That gap pushed the worker into an unplanned synthetic-data workaround.",
-      "evidence": "The handoff explicitly records this deviation and recommends updating the skill (`.../handoffs/2026-03-28T06-40-39-714Z__ingest-pipeline-and-tests__b3076792-d380-4880-8dca-a135668f9ff8.json:136-142`), while `.factory/skills/db-pipeline-worker/SKILL.md` contains no note about Pennsieve authentication limits for per-file MicroCT content."
+      "observation": "The `db-pipeline-worker` skill omits an important MicroCT-specific constraint: public Cassava access exposes metadata JSONs, but not the CSV/GraphML file bodies needed for a live extraction-backed ingest test. That gap pushed the worker toward a synthetic-data workaround.",
+      "evidence": "The handoff records this deviation and recommends updating the skill (`/Users/tmsincomb/.factory/missions/dc687c65-7460-4de7-9184-075e91a337da/handoffs/2026-03-28T06-40-39-714Z__ingest-pipeline-and-tests__b3076792-d380-4880-8dca-a135668f9ff8.json`), while `.factory/skills/db-pipeline-worker/SKILL.md` has Cassava references but no note about Pennsieve-authenticated per-file access."
     },
     {
       "area": "knowledge",
-      "observation": "The shared architecture/docs still do not surface that `quantdb.values_inst.id_sub` is mandatory for every inserted instance, which forced the worker to rediscover a schema invariant during implementation.",
-      "evidence": "`sql/tables.sql:212` defines `id_sub text NOT NULL`, the handoff calls out this exact discovery and suggests documenting it in architecture (`.../handoffs/2026-03-28T06-40-39-714Z__ingest-pipeline-and-tests__b3076792-d380-4880-8dca-a135668f9ff8.json:132,142`), and `.factory/library/architecture.md` does not mention the constraint."
+      "observation": "Shared environment notes mention the Cassava endpoint but not that individual MicroCT data files are not publicly retrievable from it, leaving future workers likely to rediscover that limitation.",
+      "evidence": "`.factory/library/environment.md:24` lists the Cassava dataset URL only, and the worker handoff states they had to abandon live file fetching because individual CSV/GraphML content requires Pennsieve authentication."
     },
     {
       "area": "services",
-      "observation": "The repo-level shared state is inconsistent about linting: `services.yaml` still advertises a flake8 command even though the mission guidance says flake8 is currently broken and should be skipped.",
-      "evidence": "`.factory/services.yaml:5` defines a `lint` command using flake8, while `AGENTS.md:48` says `flake8` is incompatible and lint verification should be skipped."
+      "observation": "Repo-level shared state is inconsistent about linting: the service catalog still advertises a flake8 command even though mission guidance says flake8 is currently broken and should be skipped.",
+      "evidence": "`.factory/services.yaml:5` defines a `lint` command using flake8, while `AGENTS.md:48` says flake8 is incompatible in this environment and lint verification should be skipped."
     }
   ],
   "addressesFailureFrom": null,
-  "summary": "Fail. Commit `7f84110` adds the requested ingestion helpers and a large test file, but the feature contract required an extraction-backed end-to-end ingest test and the new suite instead uses synthetic fixtures that do not exercise — and currently mask incompatibilities in — the real `extract_microct.py` -> `ingest_microct.py` integration path."
+  "summary": "Fail. Commit `7f84110` adds the requested ingestion helpers and a broad synthetic round-trip test suite, but it does not satisfy the required extraction-backed `extract_microct.py -> ingest_microct.py` pipeline proof, and the current tests mask real schema/interface mismatches in that path."
 }

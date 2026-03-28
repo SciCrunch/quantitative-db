@@ -23,6 +23,7 @@
 
 - Cassava: `https://cassava.ucsd.edu/sparc/datasets/{uuid}/LATEST/`
 - MicroCT dataset UUID: `fb1cbd05-4320-4d8b-ac3a-44f1fe810718`
+- Public Cassava access exposes dataset metadata JSONs such as `curation-export.json` and `path-metadata.json`, but individual MicroCT CSV/GraphML file bodies require Pennsieve-authenticated access.
 
 ## Code Conventions
 

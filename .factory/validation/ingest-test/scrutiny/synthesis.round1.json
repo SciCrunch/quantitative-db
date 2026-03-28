@@ -1,6 +1,6 @@
 {
   "milestone": "ingest-test",
-  "round": 2,
+  "round": 1,
   "status": "fail",
   "validatorsRun": {
     "test": {
@@ -31,30 +31,30 @@
     {
       "featureId": "ingest-pipeline-and-tests",
       "severity": "blocking",
-      "description": "The ingest milestone contract still requires an end-to-end `schema SQL -> extract from cassava -> ingest -> verify -> delete -> re-ingest -> verify` flow, but `test/test_ingest_microct.py` continues to seed synthetic fixture dicts instead of exercising `extract_microct.py`, leaving `VAL-CROSS-002` unproven and masking concrete interface mismatches between extractor output and ingester input."
+      "description": "The ingest milestone contract required an end-to-end `schema SQL -> extract from cassava -> ingest -> verify -> delete -> re-ingest -> verify` flow, but `test/test_ingest_microct.py` seeds synthetic fixture dicts instead of exercising `extract_microct.py`, which leaves `VAL-CROSS-002` unproven and masks real interface mismatches between `extract_microct.py` output and `ingest_microct.py` input."
     }
   ],
   "appliedUpdates": [
     {
       "target": "library",
-      "description": "Documented in `.factory/library/environment.md` that public Cassava access exposes metadata JSONs but individual MicroCT CSV/GraphML file bodies require Pennsieve-authenticated access.",
+      "description": "Documented in `.factory/library/architecture.md` that `quantdb.values_inst.id_sub` is a required `NOT NULL` column for every inserted instance row.",
       "sourceFeature": "ingest-pipeline-and-tests"
     }
   ],
   "suggestedGuidanceUpdates": [
     {
       "target": "skills",
-      "suggestion": "Update `db-pipeline-worker` guidance to warn that public Cassava access exposes metadata JSON but not the underlying CSV/GraphML file bodies needed for live MicroCT ingest tests, so workers should plan authenticated access or explicitly renegotiate end-to-end test expectations before substituting synthetic fixtures.",
-      "evidence": "The `ingest-pipeline-and-tests` handoff documents a deviation to synthetic data because the needed file bodies were unavailable through public Cassava, and the scrutiny review confirmed that this deviation left `VAL-CROSS-002` untested while hiding extractor→ingester schema mismatches.",
+      "suggestion": "Update `db-pipeline-worker` guidance to warn that public cassava access exposes metadata JSON but not the underlying CSV/GraphML file bodies needed for live MicroCT ingest tests, so workers should plan authenticated access or explicitly renegotiate end-to-end test expectations before substituting synthetic fixtures.",
+      "evidence": "The `ingest-pipeline-and-tests` handoff documents a deviation to synthetic data because the needed file bodies were unavailable through public cassava, and the scrutiny review found that this deviation left `VAL-CROSS-002` untested and hid extractor→ingester schema mismatches.",
       "isSystemic": false
     },
     {
-      "target": "AGENTS.md/services.yaml",
-      "suggestion": "Reconcile the shared lint guidance so the mission instructions and `.factory/services.yaml` no longer disagree about whether flake8 should be run in this environment.",
-      "evidence": "`.factory/services.yaml` still advertises a flake8 lint command, while `AGENTS.md` says flake8 is currently broken and should be skipped.",
+      "target": "services.yaml",
+      "suggestion": "Reconcile the shared lint guidance: either replace the broken flake8-based `lint` command with the supported formatter/pre-commit checks or update the mission guidance so `.factory/services.yaml` and `AGENTS.md` no longer contradict each other.",
+      "evidence": "During this scrutiny run the configured flake8 lint command failed with `AttributeError: 'EntryPoints' object has no attribute 'get'`, matching the existing `AGENTS.md` note that flake8 is currently incompatible and should be skipped.",
       "isSystemic": true
     }
   ],
   "rejectedObservations": [],
-  "previousRound": ".factory/validation/ingest-test/scrutiny/synthesis.round1.json"
+  "previousRound": null
 }
