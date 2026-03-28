@@ -1,0 +1,25 @@
+{
+  "groupId": "cross",
+  "surface": "pytest-derived-db-check",
+  "status": "pass",
+  "assertions": [
+    "VAL-CROSS-001"
+  ],
+  "assertionResults": [
+    {
+      "id": "VAL-CROSS-001",
+      "status": "pass",
+      "reason": "All 27 quantitative labels emitted by extraction expectations and all 3 categorical labels resolved in quantdb_test after schema setup."
+    }
+  ],
+  "toolsUsed": [
+    "python",
+    "postgresql"
+  ],
+  "evidenceFiles": [
+    "/Users/tmsincomb/.factory/missions/dc687c65-7460-4de7-9184-075e91a337da/evidence/schema-extraction/cross/label-resolution.txt"
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Checked 27 descriptors_quant labels and 3 descriptors_cat labels against quantdb_test after schema setup. Missing quant=0, missing cat=0."
+}

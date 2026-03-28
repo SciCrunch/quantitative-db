@@ -1,0 +1,90 @@
+{
+  "groupId": "schema",
+  "surface": "pytest",
+  "status": "pass",
+  "assertions": [
+    {
+      "id": "VAL-SCHEMA-001",
+      "title": "Units mm and mm2 exist"
+    },
+    {
+      "id": "VAL-SCHEMA-002",
+      "title": "quant_agg_type enum includes sd"
+    },
+    {
+      "id": "VAL-SCHEMA-003",
+      "title": "Nerve morphology descriptors_quant exist"
+    },
+    {
+      "id": "VAL-SCHEMA-004",
+      "title": "Fascicle morphology descriptors_quant exist"
+    },
+    {
+      "id": "VAL-SCHEMA-005",
+      "title": "Summary morphology descriptors_quant exist in mm/mm2"
+    },
+    {
+      "id": "VAL-SCHEMA-006",
+      "title": "GraphML edge descriptors_cat exist"
+    },
+    {
+      "id": "VAL-SCHEMA-007",
+      "title": "All new descriptors have valid FK references"
+    },
+    {
+      "id": "VAL-SCHEMA-008",
+      "title": "SQL inserts file is idempotent"
+    }
+  ],
+  "assertionResults": [
+    {
+      "id": "VAL-SCHEMA-001",
+      "status": "pass",
+      "reason": "pytest passed; TestUnits confirmed 'mm' and 'mm2' exist in quantdb.units."
+    },
+    {
+      "id": "VAL-SCHEMA-002",
+      "status": "pass",
+      "reason": "pytest passed; TestAggType confirmed 'sd' is present in quantdb.quant_agg_type."
+    },
+    {
+      "id": "VAL-SCHEMA-003",
+      "status": "pass",
+      "reason": "pytest passed; TestNerveMorphologyDescriptors confirmed all expected nerve morphology descriptors and their unit/aspect/domain FKs."
+    },
+    {
+      "id": "VAL-SCHEMA-004",
+      "status": "pass",
+      "reason": "pytest passed; TestFascicleMorphologyDescriptors confirmed all expected fascicle morphology descriptors and their unit/aspect/domain FKs."
+    },
+    {
+      "id": "VAL-SCHEMA-005",
+      "status": "pass",
+      "reason": "pytest passed; TestSummaryMorphologyDescriptors confirmed all expected summary descriptors and verified mm/mm2 unit assignments."
+    },
+    {
+      "id": "VAL-SCHEMA-006",
+      "status": "pass",
+      "reason": "pytest passed; TestEdgeDescriptorsCat confirmed the three expected GraphML edge descriptors_cat rows exist."
+    },
+    {
+      "id": "VAL-SCHEMA-007",
+      "status": "pass",
+      "reason": "pytest passed; TestFKIntegrity found no orphan unit/aspect/domain FK references for the new descriptors."
+    },
+    {
+      "id": "VAL-SCHEMA-008",
+      "status": "pass",
+      "reason": "pytest passed; TestIdempotency reran sql/inserts_microct.sql without error."
+    }
+  ],
+  "toolsUsed": [
+    "pytest"
+  ],
+  "evidenceFiles": [
+    "/Users/tmsincomb/.factory/missions/dc687c65-7460-4de7-9184-075e91a337da/evidence/schema-extraction/schema/pytest-test_schema_microct-v.txt"
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Ran /Users/tmsincomb/miniforge3/envs/quantdb/bin/python -m pytest test/test_schema_microct.py -v against quantdb_test. Exit code 0; all 108 collected tests passed, so VAL-SCHEMA-001 through VAL-SCHEMA-008 passed."
+}

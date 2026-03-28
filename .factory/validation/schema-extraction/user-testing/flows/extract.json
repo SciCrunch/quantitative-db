@@ -1,0 +1,66 @@
+{
+  "groupId": "extract",
+  "surface": "pytest",
+  "status": "pass",
+  "assertions": [
+    "VAL-EXTRACT-001",
+    "VAL-EXTRACT-002",
+    "VAL-EXTRACT-003",
+    "VAL-EXTRACT-004",
+    "VAL-EXTRACT-005",
+    "VAL-EXTRACT-006",
+    "VAL-EXTRACT-007",
+    "VAL-EXTRACT-008"
+  ],
+  "assertionResults": [
+    {
+      "id": "VAL-EXTRACT-001",
+      "status": "pass",
+      "reason": "Pytest passed; fetch_cassava_metadata tests confirmed valid curation-export and path-metadata responses."
+    },
+    {
+      "id": "VAL-EXTRACT-002",
+      "status": "pass",
+      "reason": "Pytest passed; entity extraction tests confirmed non-empty subject/sample extraction with required keys and live entity counts."
+    },
+    {
+      "id": "VAL-EXTRACT-003",
+      "status": "pass",
+      "reason": "Pytest passed; parent relationship tests confirmed valid sample parent edges and hierarchy completeness."
+    },
+    {
+      "id": "VAL-EXTRACT-004",
+      "status": "pass",
+      "reason": "Pytest passed; nerve morphology parsing tests confirmed blank-row skipping and pixel-to-um/um2 conversions."
+    },
+    {
+      "id": "VAL-EXTRACT-005",
+      "status": "pass",
+      "reason": "Pytest passed; GraphML node parsing tests confirmed correct fascicle instances, measurements, IDs, and conversions."
+    },
+    {
+      "id": "VAL-EXTRACT-006",
+      "status": "pass",
+      "reason": "Pytest passed; GraphML edge parsing tests confirmed categorical edge values and valid instance references."
+    },
+    {
+      "id": "VAL-EXTRACT-007",
+      "status": "pass",
+      "reason": "Pytest passed; summary morphology parsing tests confirmed mm/mm2 values are stored as-is with valid quantitative descriptors."
+    },
+    {
+      "id": "VAL-EXTRACT-008",
+      "status": "pass",
+      "reason": "Pytest passed; FK-label validity tests confirmed accepted keys, known lookup labels, and naming conventions."
+    }
+  ],
+  "toolsUsed": [
+    "pytest"
+  ],
+  "evidenceFiles": [
+    "/Users/tmsincomb/.factory/missions/dc687c65-7460-4de7-9184-075e91a337da/evidence/schema-extraction/extract/pytest-test_extract_microct-v.txt"
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Ran /Users/tmsincomb/miniforge3/envs/quantdb/bin/python -m pytest test/test_extract_microct.py -v against quantdb_test and live cassava-backed extraction. Exit code 0; 60 tests passed in 3.39s, so all assigned extraction assertions passed."
+}

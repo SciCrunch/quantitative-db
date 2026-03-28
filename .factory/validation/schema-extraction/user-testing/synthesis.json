@@ -1,0 +1,40 @@
+{
+  "milestone": "schema-extraction",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 17,
+    "passed": 17,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-CROSS-001",
+    "VAL-EXTRACT-001",
+    "VAL-EXTRACT-002",
+    "VAL-EXTRACT-003",
+    "VAL-EXTRACT-004",
+    "VAL-EXTRACT-005",
+    "VAL-EXTRACT-006",
+    "VAL-EXTRACT-007",
+    "VAL-EXTRACT-008",
+    "VAL-SCHEMA-001",
+    "VAL-SCHEMA-002",
+    "VAL-SCHEMA-003",
+    "VAL-SCHEMA-004",
+    "VAL-SCHEMA-005",
+    "VAL-SCHEMA-006",
+    "VAL-SCHEMA-007",
+    "VAL-SCHEMA-008"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [
+    {
+      "target": "user-testing.md",
+      "description": "Added setup notes plus Flow Validator Guidance for the pytest surface, including the single-validator concurrency rule and repo/env boundaries.",
+      "source": "setup"
+    }
+  ],
+  "previousRound": null
+}
