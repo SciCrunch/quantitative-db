@@ -1,7 +1,7 @@
 {
   "milestone": "schema-extraction",
-  "round": 1,
-  "status": "fail",
+  "round": 2,
+  "status": "pass",
   "validatorsRun": {
     "test": {
       "passed": true,
@@ -20,55 +20,27 @@
     }
   },
   "reviewsSummary": {
-    "total": 2,
-    "passed": 0,
-    "failed": 2,
-    "failedFeatures": [
-      "schema-lookup-data",
-      "extraction-module"
-    ]
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "failedFeatures": []
   },
-  "blockingIssues": [
-    {
-      "featureId": "schema-lookup-data",
-      "severity": "blocking",
-      "description": "`sql/inserts_microct.sql` is not semantically idempotent for the NULL-domain `descriptors_cat` rows: `ON CONFLICT (domain, range, label) DO NOTHING` does not suppress duplicates when `domain` is NULL, so reruns can create duplicate edge-descriptor rows and make label-based lookup ambiguous."
-    },
-    {
-      "featureId": "extraction-module",
-      "severity": "blocking",
-      "description": "`parse_nerve_morphology()` emits raw pixel counts instead of the contract-required um/um2 conversions, so the extracted quantitative values do not match `features.json` and `validation-contract.md`."
-    },
-    {
-      "featureId": "extraction-module",
-      "severity": "blocking",
-      "description": "`parse_fascicle_graphml()` also preserves raw pixel node measurements instead of converting them to um/um2, so the GraphML extraction path fails the reviewed feature contract for converted values."
-    }
-  ],
+  "blockingIssues": [],
   "appliedUpdates": [],
   "suggestedGuidanceUpdates": [
     {
       "target": "skills",
       "suggestion": "Update `db-pipeline-worker` guidance to call out that `ON CONFLICT ... DO NOTHING` is not sufficient for nullable unique keys in PostgreSQL. Workers should use `WHERE NOT EXISTS`, a `DO $$` guard, or another NULL-safe pattern when the uniqueness definition includes nullable columns.",
-      "evidence": "The `schema-lookup-data` review found that `sql/inserts_microct.sql` followed the current idempotency guidance for `descriptors_cat`, but PostgreSQL treated the `(NULL, range, label)` rows as distinct on rerun and inserted duplicates.",
+      "evidence": "Round 1 failed because `sql/inserts_microct.sql` duplicated `(NULL, range, label)` `descriptors_cat` rows on rerun, and the round 2 fix review confirmed that a NULL-safe `WHERE NOT EXISTS` pattern was required to make the inserts truly idempotent.",
       "isSystemic": true
     },
     {
-      "target": "AGENTS.md",
-      "suggestion": "Clarify the MicroCT unit contract in mission guidance so schema descriptors and extraction requirements agree on whether per-slice measurements should stay in `pixel-11um` units or be converted to um/um2 before ingestion.",
-      "evidence": "The `extraction-module` review found a direct inconsistency between `features.json`/`validation-contract.md`, which require pixel-to-um/um2 conversion, and the schema feature plus `sql/inserts_microct.sql`, which define the per-slice descriptors with `pixel-11um` labels.",
-      "isSystemic": false
+      "target": "skills",
+      "suggestion": "Tighten `db-pipeline-worker` TDD compliance guidance or handoff checks so workers do not claim `skillFeedback.followedProcedure: true` when transcript evidence shows implementation edits landed before the corresponding tests were updated.",
+      "evidence": "The round 2 review for `fix-pixel-conversion-and-sql-idempotency` again found code edits in `sql/inserts_microct.sql` and `quantdb/extract_microct.py` before later test updates, while the worker still reported `skillFeedback.followedProcedure: true`. A similar mismatch was already observed in round 1.",
+      "isSystemic": true
     }
   ],
-  "rejectedObservations": [
-    {
-      "observation": "The worker self-reported `skillFeedback.followedProcedure: true` even though the transcript skeleton shows implementation work before tests.",
-      "reason": "insufficient evidence that this is a systemic shared-state issue rather than a one-off inaccurate self-report."
-    },
-    {
-      "observation": "The default shared `test` command in `.factory/services.yaml` omits `test/test_schema_microct.py`.",
-      "reason": "useful, but left for orchestrator follow-up rather than applied here because the current services file appears to be milestone-progressive and a safe additive command naming convention should be decided centrally."
-    }
-  ],
-  "previousRound": null
+  "rejectedObservations": [],
+  "previousRound": ".factory/validation/schema-extraction/scrutiny/synthesis.round1.json"
 }

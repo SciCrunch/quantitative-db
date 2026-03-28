@@ -508,18 +508,14 @@ class TestParseFascicleGraphml:
 
     def test_node_area_values_converted_to_um2(self):
         """Area values are converted: pixels * 129.96 → um2."""
-        area_dicts = [
-            d for d in self.result['values_quant'] if d['desc_quant'] == 'fascicle cross section area um2'
-        ]
+        area_dicts = [d for d in self.result['values_quant'] if d['desc_quant'] == 'fascicle cross section area um2']
         assert len(area_dicts) == 3
         values = sorted(d['value'] for d in area_dicts)
         assert values == pytest.approx(sorted([50.0 * 129.96, 55.0 * 129.96, 60.0 * 129.96]))
 
     def test_node_linear_values_converted_to_um(self):
         """Linear values are converted: pixels * 11.4 → um."""
-        diam_dicts = [
-            d for d in self.result['values_quant'] if d['desc_quant'] == 'fascicle cross section diameter um'
-        ]
+        diam_dicts = [d for d in self.result['values_quant'] if d['desc_quant'] == 'fascicle cross section diameter um']
         assert len(diam_dicts) == 3
         values = sorted(d['value'] for d in diam_dicts)
         assert values == pytest.approx(sorted([7.98 * 11.4, 8.74 * 11.4, 8.36 * 11.4]))
@@ -527,8 +523,7 @@ class TestParseFascicleGraphml:
     def test_node_angle_values_not_converted(self):
         """Angle values remain in degrees (no conversion)."""
         angle_dicts = [
-            d for d in self.result['values_quant']
-            if d['desc_quant'] == 'fascicle cross section ellipse angle degree'
+            d for d in self.result['values_quant'] if d['desc_quant'] == 'fascicle cross section ellipse angle degree'
         ]
         assert len(angle_dicts) == 3
         values = sorted(d['value'] for d in angle_dicts)
