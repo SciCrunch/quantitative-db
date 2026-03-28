@@ -1,5 +1,0 @@
-# Deep Upsert Ingest Gotchas
-
-- For f006 dump-based equivalence, `obj_desc_inst`, `obj_desc_quant`, and `obj_desc_cat` are not just trigger prerequisites. The restored production baseline contains meaningful non-default `addr_field` metadata (`addr_field != 1` on 79/127 `obj_desc_inst`, 1045/1045 `obj_desc_quant`, and 36/84 `obj_desc_cat` rows), so regenerating these tables with a hard-coded default is not equivalent to extracting and replaying the source rows.
-- Preserve PostgreSQL `numeric` precision when extracting `values_quant.value`. Coercing to Python `float` changes real f006 values (for example `145287.02239800003 -> 145287.022398` and `505.08385249938385 -> 505.083852499384`), which breaks exact baseline matching even when counts still pass.
-- The current `quantdb` conda environment does not have `pytest-timeout` installed. Mission guidance that says to run `pytest ... --timeout=900` is not runnable as written unless the plugin is installed first; use the tool timeout instead.
