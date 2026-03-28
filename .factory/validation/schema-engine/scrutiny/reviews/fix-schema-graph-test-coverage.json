@@ -1,0 +1,21 @@
+{
+  "featureId": "fix-schema-graph-test-coverage",
+  "reviewedAt": "2026-03-24T20:10:17Z",
+  "commitId": "73452b0",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Reviewed the original failing coverage in `schema-graph` and the fix in commit `73452b0`. The updated `test_no_table_before_its_dependencies` now iterates reflected `Table.foreign_key_constraints`, so ordering is asserted for all dependencies including composite constraints such as `values_quant (object, desc_inst) -> obj_desc_inst`. The updated `test_every_fk_col_has_entry` now walks reflected single-column FK constraints and confirms each local FK column is present in `SchemaGraph.tables[table].fk_map`, closing the prior completeness gap. No remaining blocking issues were found in the fix.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The `python-library-worker` procedure appears heavier than what narrowly scoped fix features actually need, or its `followedProcedure` reporting is too permissive. This successful fix workflow skipped several mandated context reads without any recorded deviation.",
+      "evidence": "`.factory/skills/python-library-worker/SKILL.md:26-39` requires reading `mission.md`, `.factory/library/architecture.md`, `.factory/library/environment.md`, `sql/tables.sql`, and `docs/` research reports; the `worker-transcripts.jsonl` entry for session `0e3087ef-def7-4d03-8552-0304d9d57047` shows Read calls for `AGENTS.md`, `validation-contract.md`, `features.json`, `.factory/services.yaml`, `test/test_generic_ingest.py`, and `quantdb/generic_ingest.py`, but not those additional files."
+    }
+  ],
+  "addressesFailureFrom": ".factory/validation/schema-engine/scrutiny/reviews/schema-graph.json",
+  "summary": "Reviewed commits `5fff647` and `73452b0`, the fix handoff, transcript skeleton, and prior failure report. The fix adequately addresses both original blocking issues, so this re-review passes."
+}

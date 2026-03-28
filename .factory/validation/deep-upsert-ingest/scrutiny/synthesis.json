@@ -1,0 +1,87 @@
+{
+  "milestone": "deep-upsert-ingest",
+  "round": 1,
+  "status": "fail",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "\"/Users/tmsincomb/miniforge3/envs/quantdb/bin/python\" -m pytest \"/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/test\" -v --no-header -x --ignore=\"/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/test/test_api.py\"",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "\"/Users/tmsincomb/miniforge3/envs/quantdb/bin/python\" -c \"import pathlib,tomllib; data=tomllib.loads(pathlib.Path('/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/pyproject.toml').read_text()); tool=data.get('tool',{}); configured=[name for name in ('mypy','pyright','pytype','basedpyright') if name in tool]; print('NO_TYPECHECKER_CONFIGURED' if not configured else 'TYPECHECKERS=' + ','.join(configured))\"",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "\"/Users/tmsincomb/miniforge3/envs/quantdb/bin/python\" -m pre_commit run isort --files \"/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/quantdb/ingest_v2.py\" \"/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/test/test_ingest_v2.py\" && \"/Users/tmsincomb/miniforge3/envs/quantdb/bin/python\" -m pre_commit run blue --files \"/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/quantdb/ingest_v2.py\" \"/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/test/test_ingest_v2.py\"",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 2,
+    "passed": 0,
+    "failed": 2,
+    "failedFeatures": [
+      "ingest-v2-pipeline",
+      "ingest-v2-comparison-test"
+    ]
+  },
+  "blockingIssues": [
+    {
+      "featureId": "ingest-v2-pipeline",
+      "severity": "blocking",
+      "description": "`quantdb/ingest_v2.py` does not prove f006-scale deep upsert through `Ingest.batch()`: the scale-critical tables (`values_inst`, `instance_parent`, `values_quant`, `values_cat`) are inserted through raw bulk SQL after disabling triggers instead of the Ingest API promised by the feature contract."
+    },
+    {
+      "featureId": "ingest-v2-pipeline",
+      "severity": "blocking",
+      "description": "`extract_f006_from_db()` does not preserve source `obj_desc_*` rows. `ingest_f006_v2()` regenerates `obj_desc_inst`, `obj_desc_quant`, and `obj_desc_cat` with a hard-coded `addr_field=1`, but the restored f006 baseline has substantial non-default `addr_field` metadata, so the pipeline cannot reproduce the production state exactly."
+    },
+    {
+      "featureId": "ingest-v2-pipeline",
+      "severity": "blocking",
+      "description": "`extract_f006_from_db()` coerces PostgreSQL `numeric` values to Python `float` for `values_quant.value`, introducing lossy rounding on real f006 rows and preventing exact value equivalence."
+    },
+    {
+      "featureId": "ingest-v2-comparison-test",
+      "severity": "blocking",
+      "description": "`TestComparisonProof` does not satisfy `VAL-ING-013`: its spot-check tests only assert generic validity (`non-null`, `>= 0`, allowed labels) and never compare re-ingested `(value, value_blob, desc_quant/desc_cat)` rows against the gold-standard production baseline."
+    }
+  ],
+  "appliedUpdates": [
+    {
+      "target": "library",
+      "description": "Added `.factory/library/deep-upsert-ingest.md` documenting three validation gotchas: `obj_desc_*` rows carry meaningful non-default `addr_field` metadata in f006, `values_quant.value` must preserve PostgreSQL numeric precision instead of converting to float, and the current quantdb environment lacks `pytest-timeout` despite mission guidance referencing `--timeout=900`.",
+      "sourceFeature": "ingest-v2-pipeline"
+    }
+  ],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Require any manual feature-completion override to include an equivalent handoff/transcript artifact (or an explicit recorded commit reference) so scrutiny reviewers can reconstruct what was actually validated.",
+      "evidence": "The `ingest-v2-pipeline` review could not find a handoff file or transcript skeleton for worker session `5fe1d971-5a92-4120-a51c-76b22174ebdc`; mission logs show the worker failed and the feature was later marked 'manually verified', which left scrutiny without the normal traceability trail.",
+      "isSystemic": true
+    },
+    {
+      "target": "skills",
+      "suggestion": "Update `db-pipeline-worker` guidance to call out that SQLAlchemy returns PostgreSQL `numeric` columns as `decimal.Decimal`, and that exact-value tests/extractors should preserve Decimal precision instead of coercing to float.",
+      "evidence": "The `ingest-v2-comparison-test` handoff and reviewer both noted that the worker initially wrote float-only numeric assertions, and the `ingest-v2-pipeline` review found a real regression where `values_quant.value` was converted to float and rounded away from the production baseline.",
+      "isSystemic": true
+    },
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Align the documented `pytest ... --timeout=900` guidance with the actual environment: either install/register `pytest-timeout` in the quantdb env or remove that flag from mission instructions and rely on the execution timeout instead.",
+      "evidence": "Mission `AGENTS.md` and the comparison-test feature metadata both instruct workers to use `--timeout=900`, but the handoff records that the current quantdb environment rejects the flag because `pytest-timeout` is not installed.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "`.factory/skills/db-pipeline-worker/SKILL.md` still references `test/test_ingest_f006.py` for the shared `rebuild_database` fixture.",
+      "reason": "already-documented in the gold-standard-snapshots scrutiny synthesis; not re-added here to avoid duplicating the same open guidance item."
+    }
+  ],
+  "previousRound": null
+}

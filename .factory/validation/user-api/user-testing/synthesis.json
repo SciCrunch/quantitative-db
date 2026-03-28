@@ -1,0 +1,28 @@
+{
+  "milestone": "user-api",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 7,
+    "passed": 7,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-API-001",
+    "VAL-API-002",
+    "VAL-API-003",
+    "VAL-API-004",
+    "VAL-API-005",
+    "VAL-API-006",
+    "VAL-API-007"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [],
+  "flows": [
+    ".factory/validation/user-api/user-testing/flows/user-api-cli.json"
+  ],
+  "previousRound": null,
+  "generatedAt": "2026-03-24T22:27:29.734870+00:00"
+}

@@ -1,0 +1,28 @@
+{
+  "featureId": "fix-rebuild-database-dependency",
+  "reviewedAt": "2026-03-25T08:30:14.371599+00:00",
+  "commitId": "1324179d525b558f702c9d4ba5ed0728b791fa87",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The reviewed diff fixes the empty-database failure the right way: `rebuild_database` is now a dependency of the module-scoped `reflected` fixtures in `test_deep_upsert.py` and `test_generic_ingest.py`, and the current test tree consistently uses the shared session-scoped rebuild path for DB-reflecting test modules. That aligns with the prior scrutiny guidance and I did not find a remaining blocking regression in this feature.",
+    "issues": [
+      {
+        "file": "test/test_models.py",
+        "line": 45,
+        "severity": "non_blocking",
+        "description": "This commit also introduces the entire `test_models.py` module, and its `reflected` fixture calls `reflect_models(test=True)` instead of using the explicit localhost engine construction pattern that AGENTS.md and the other DB-dependent tests use. It works with the current orthauth `test-db-*` settings, but it is a weaker guard against accidentally reflecting a non-local database than the rest of the suite uses."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "Mission guidance currently talks about `test/test_models.py` as an existing off-limits test file, but repository history shows that file is first introduced by this fix commit. The shared docs should be corrected so future workers are not told to treat a not-yet-existing file as pre-existing project state.",
+      "evidence": "Mission AGENTS.md:25 lists `test/test_models.py` among the 'existing test files' that must not be modified. `git show --stat 1324179d525b558f702c9d4ba5ed0728b791fa87` shows `test/test_models.py | 397 ++++++++++++++++++++++++++++++++++++++++++++`, and `git show 1324179d525b558f702c9d4ba5ed0728b791fa87^:test/test_models.py` fails because the path did not exist in the parent commit."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Pass. The rebuild-database dependency is applied correctly across the DB-reflecting test fixtures, which addresses the prior empty-database failure mode without regressing the earlier scrutiny fixes. I noted one non-blocking consistency issue in the newly added `test/test_models.py` fixture and one concrete AGENTS.md mismatch about that file's existence."
+}

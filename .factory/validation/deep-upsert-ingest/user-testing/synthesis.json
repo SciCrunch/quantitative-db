@@ -1,0 +1,45 @@
+{
+  "milestone": "deep-upsert-ingest",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 17,
+    "passed": 17,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-EXT-003",
+    "VAL-EXT-004",
+    "VAL-ING-001",
+    "VAL-ING-002",
+    "VAL-ING-003",
+    "VAL-ING-004",
+    "VAL-ING-005",
+    "VAL-ING-006",
+    "VAL-ING-007",
+    "VAL-ING-008",
+    "VAL-ING-009",
+    "VAL-ING-010",
+    "VAL-ING-011",
+    "VAL-ING-012",
+    "VAL-ING-013",
+    "VAL-CROSS-001",
+    "VAL-CROSS-003"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [
+    {
+      "target": "user-testing.md",
+      "description": "Documented effective concurrency of 1 for the deep-upsert-ingest CLI/pytest flow and added milestone-specific guidance to validate with TestComparisonProof plus supplemental read-only checks when needed.",
+      "source": "setup"
+    },
+    {
+      "target": "user-testing.md",
+      "description": "Recorded the expected PytestUnknownMarkWarning for @pytest.mark.slow in test/test_ingest_v2.py so future validators know the warning is harmless.",
+      "source": "flow-report"
+    }
+  ],
+  "previousRound": null
+}

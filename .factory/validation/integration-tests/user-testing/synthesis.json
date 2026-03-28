@@ -1,0 +1,23 @@
+{
+  "milestone": "integration-tests",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 2,
+    "passed": 2,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-CROSS-001",
+    "VAL-CROSS-002"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [],
+  "flows": [
+    ".factory/validation/integration-tests/user-testing/flows/integration-cli.json"
+  ],
+  "previousRound": null,
+  "generatedAt": "2026-03-24T23:00:09.456654+00:00"
+}

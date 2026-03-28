@@ -1,0 +1,34 @@
+{
+  "featureId": "csv-fiber-extraction",
+  "reviewedAt": "2026-03-25T09:43:25.311864Z",
+  "commitId": "143ffbf",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The JPX extraction path looks correct, but the CSV extraction feature does not meet its scoped behavior against the real f006 inputs. The committed code only works when CSV entries are pre-injected into path-metadata, while the actual cached path-metadata contains none, and the added tests skip the real-data assertions instead of proving the required counts from gold-standard-backed inputs.",
+    "issues": [
+      {
+        "file": "quantdb/extract_v2.py",
+        "line": 434,
+        "severity": "blocking",
+        "description": "The extraction path only searches `path_metadata` for existing CSV entries (`_find_csv_entries(...)`, then filters to `fascicles.csv` / `fibers.csv` on lines 434-440). Against the real f006 cache this yields zero matches, so `extract_fasc_fib_v2()` returns no fascicles or fibers at all. I confirmed this with the cached cassava files: the current implementation produced `{'csv_entries': 0, 'fascicles': 0, 'fibers': 0, 'parents': 0, 'objects': 0}`. That falls short of the feature contract and VAL-EXT-003/004, which require extraction of the real 428 fascicles and 608,811 fibers from f006 rather than only supporting mock-injected CSV metadata."
+      },
+      {
+        "file": "test/test_extract_v2.py",
+        "line": 795,
+        "severity": "blocking",
+        "description": "The new tests do not validate the promised real-data behavior. `integration_result` skips immediately when `_find_csv_entries(path_metadata)` is empty (lines 799-812), which is exactly what happens for the real cached f006 metadata, so the asserted 428 / 608,811 counts on lines 816-822 never run. In addition, the fascicle/fiber tests hard-code those constants instead of comparing against the gold-standard fixtures the feature description called for. As written, the test suite only proves the mocked code path, not the scoped validation assertions for f006."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "knowledge",
+      "observation": "The shared environment notes say Pennsieve API access may be needed for CSV downloads, but they do not record the dataset-specific fact that f006 Cassava `path-metadata.json` contains zero CSV entries. Future workers are likely to rediscover this the hard way and overestimate what `_find_csv_entries()` can do against the cached metadata alone.",
+      "evidence": "The reviewed transcript skeleton for worker session `70f9f45c-ceb3-43ac-91f6-cdf67cb03ac5` shows repeated Cassava/Pennsieve investigation before implementation. `.factory/library/environment.md` mentions Pennsieve downloads and macOS path limits, but not the missing CSV-entry condition. A read-only check against `~/.quantdb/cassava.ucsd.edu.cache/2a3d01c0-39d3-464a-8746-54c9d67ebe0f/path-metadata.json` returned `csv_entries: 0`."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Reviewed feature `csv-fiber-extraction` at commit `143ffbf` and marked it fail. The JPX path extraction appears sound, but the CSV extraction implementation never reaches the real f006 data because the cached path-metadata has no CSV entries, and the added tests skip that path instead of verifying the required fascicle/fiber counts against gold-standard-backed inputs."
+}

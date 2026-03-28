@@ -1,0 +1,28 @@
+{
+  "featureId": "fix-deep-upsert-trigger-ordering",
+  "reviewedAt": "2026-03-24T21:02:21Z",
+  "commitId": "ff9683a790f95295ae4376b71817b7de0e2dbcdb",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The fix partially addresses the prior failure by auto-creating obj_desc_quant/obj_desc_cat rows and by extending the trigger-ordering tests to exercise values_quant and values_cat. However, it still does not guarantee the required (object, desc_inst) prerequisite row in obj_desc_inst: _ensure_obj_desc_inst exits as soon as any row exists for the object, while values_quant and values_cat require the specific (object, desc_inst) pair. As a result, deep_upsert can still fail for objects that already have a different obj_desc_inst mapping.",
+    "issues": [
+      {
+        "file": "quantdb/generic_ingest.py",
+        "line": 785,
+        "severity": "blocking",
+        "description": "The fix still leaves VAL-UPSERT-009 incomplete. _ensure_obj_desc_inst() checks only whether any obj_desc_inst row exists for the object and returns immediately if one does (generic_ingest.py:785-789), but values_quant and values_cat require the exact (object, desc_inst) pair via FOREIGN KEY (object, desc_inst) REFERENCES obj_desc_inst (object, desc_inst) (sql/tables.sql:565-566 and 644-645). If an object already has obj_desc_inst for some other descriptor, deep_upsert(values_quant/values_cat, ...) will still skip creating the needed row and can fail on the composite FK."
+      },
+      {
+        "file": "test/test_deep_upsert.py",
+        "line": 538,
+        "severity": "blocking",
+        "description": "The new trigger-ordering tests only cover objects with no obj_desc_inst rows at all (test/test_deep_upsert.py:538-552 and 635-649). They never exercise the still-broken case where the object already has an obj_desc_inst row for a different desc_inst, so the suite does not verify the feature requirement to auto-create the specific (object, desc_inst) prerequisite row."
+      }
+    ]
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": "/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/.factory/validation/deep-upsert/scrutiny/reviews/deep-upsert-primitives.json",
+  "summary": "Fail: the fix adds obj_desc_quant/obj_desc_cat auto-creation and broader tests, but deep_upsert still skips creating the required (object, desc_inst) obj_desc_inst row when the object already has a different descriptor mapping, so the original blocking correctness issue is not fully resolved."
+}
