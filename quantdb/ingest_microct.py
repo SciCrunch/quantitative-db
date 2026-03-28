@@ -65,19 +65,10 @@ def extract_microct_from_db(session, models):
     Obj = models.Objects
     DO = models.DatasetObject
 
-    linked_uuids = {
-        row[0]
-        for row in session.execute(
-            select(DO.object).where(DO.dataset == MICROCT_UUID)
-        ).all()
-    }
+    linked_uuids = {row[0] for row in session.execute(select(DO.object).where(DO.dataset == MICROCT_UUID)).all()}
     all_obj_uuids = linked_uuids | {MICROCT_UUID}
 
-    obj_stmt = (
-        select(Obj.id, Obj.id_type, Obj.id_file)
-        .where(Obj.id.in_(all_obj_uuids))
-        .order_by(Obj.id)
-    )
+    obj_stmt = select(Obj.id, Obj.id_type, Obj.id_file).where(Obj.id.in_(all_obj_uuids)).order_by(Obj.id)
     data['objects'] = [
         {
             'id': str(row[0]),
@@ -88,15 +79,8 @@ def extract_microct_from_db(session, models):
     ]
 
     # --- dataset_object ---
-    do_stmt = (
-        select(DO.dataset, DO.object)
-        .where(DO.dataset == MICROCT_UUID)
-        .order_by(DO.object)
-    )
-    data['dataset_object'] = [
-        {'dataset': str(row[0]), 'object': str(row[1])}
-        for row in session.execute(do_stmt).all()
-    ]
+    do_stmt = select(DO.dataset, DO.object).where(DO.dataset == MICROCT_UUID).order_by(DO.object)
+    data['dataset_object'] = [{'dataset': str(row[0]), 'object': str(row[1])} for row in session.execute(do_stmt).all()]
 
     # --- values_inst ---
     VI = models.ValuesInst
@@ -151,9 +135,7 @@ def extract_microct_from_db(session, models):
                 'id_formal': row[2],
             },
         }
-        for row in session.execute(
-            ip_stmt, {'uuid': MICROCT_UUID}
-        ).all()
+        for row in session.execute(ip_stmt, {'uuid': MICROCT_UUID}).all()
     ]
 
     # --- values_quant ---
@@ -188,9 +170,7 @@ def extract_microct_from_db(session, models):
                 'id_formal': row[6],
             },
         }
-        for row in session.execute(
-            vq_stmt, {'uuid': MICROCT_UUID}
-        ).all()
+        for row in session.execute(vq_stmt, {'uuid': MICROCT_UUID}).all()
     ]
 
     # --- values_cat ---
@@ -228,9 +208,7 @@ def extract_microct_from_db(session, models):
                 'id_formal': row[6],
             },
         }
-        for row in session.execute(
-            vc_stmt, {'uuid': MICROCT_UUID}
-        ).all()
+        for row in session.execute(vc_stmt, {'uuid': MICROCT_UUID}).all()
     ]
 
     return data
@@ -264,12 +242,7 @@ def delete_microct_data(session, models):
     # Collect all MicroCT-related object UUIDs before deletion
     DO = models.DatasetObject
 
-    linked_uuids = {
-        row[0]
-        for row in session.execute(
-            select(DO.object).where(DO.dataset == MICROCT_UUID)
-        ).all()
-    }
+    linked_uuids = {row[0] for row in session.execute(select(DO.object).where(DO.dataset == MICROCT_UUID)).all()}
     all_obj_uuids = list(linked_uuids | {MICROCT_UUID})
 
     # Build subquery for all MicroCT objects (package only; no internals)
@@ -289,88 +262,60 @@ def delete_microct_data(session, models):
         'ALTER TABLE quantdb.dataset_object DISABLE TRIGGER USER',
         'ALTER TABLE quantdb.objects DISABLE TRIGGER USER',
     ]
-    _enable_triggers = [
-        s.replace('DISABLE', 'ENABLE') for s in _disable_triggers
-    ]
+    _enable_triggers = [s.replace('DISABLE', 'ENABLE') for s in _disable_triggers]
 
     for stmt in _disable_triggers:
         session.execute(sql_text(stmt))
 
     # Step 1: Delete values_quant and values_cat
     session.execute(
-        sql_text(
-            'DELETE FROM quantdb.values_quant'
-            f' WHERE object IN {_obj_subquery}'
-        ),
+        sql_text('DELETE FROM quantdb.values_quant' f' WHERE object IN {_obj_subquery}'),
         {'uuid': MICROCT_UUID},
     )
     session.execute(
-        sql_text(
-            'DELETE FROM quantdb.values_cat'
-            f' WHERE object IN {_obj_subquery}'
-        ),
+        sql_text('DELETE FROM quantdb.values_cat' f' WHERE object IN {_obj_subquery}'),
         {'uuid': MICROCT_UUID},
     )
 
     # Step 2: Delete obj_desc_quant, obj_desc_cat
     session.execute(
-        sql_text(
-            'DELETE FROM quantdb.obj_desc_quant'
-            f' WHERE object IN {_obj_subquery}'
-        ),
+        sql_text('DELETE FROM quantdb.obj_desc_quant' f' WHERE object IN {_obj_subquery}'),
         {'uuid': MICROCT_UUID},
     )
     session.execute(
-        sql_text(
-            'DELETE FROM quantdb.obj_desc_cat'
-            f' WHERE object IN {_obj_subquery}'
-        ),
+        sql_text('DELETE FROM quantdb.obj_desc_cat' f' WHERE object IN {_obj_subquery}'),
         {'uuid': MICROCT_UUID},
     )
 
     # Step 3: Delete obj_desc_inst
     session.execute(
-        sql_text(
-            'DELETE FROM quantdb.obj_desc_inst'
-            f' WHERE object IN {_obj_subquery}'
-        ),
+        sql_text('DELETE FROM quantdb.obj_desc_inst' f' WHERE object IN {_obj_subquery}'),
         {'uuid': MICROCT_UUID},
     )
 
     # Step 4: Delete instance_parent
-    _inst_subquery = (
-        '(SELECT id FROM quantdb.values_inst WHERE dataset = :uuid)'
-    )
+    _inst_subquery = '(SELECT id FROM quantdb.values_inst WHERE dataset = :uuid)'
     session.execute(
-        sql_text(
-            'DELETE FROM quantdb.instance_parent'
-            f' WHERE id IN {_inst_subquery}'
-        ),
+        sql_text('DELETE FROM quantdb.instance_parent' f' WHERE id IN {_inst_subquery}'),
         {'uuid': MICROCT_UUID},
     )
 
     # Step 5: Delete values_inst
     session.execute(
-        sql_text(
-            'DELETE FROM quantdb.values_inst WHERE dataset = :uuid'
-        ),
+        sql_text('DELETE FROM quantdb.values_inst WHERE dataset = :uuid'),
         {'uuid': MICROCT_UUID},
     )
 
     # Step 6: Delete dataset_object
     session.execute(
-        sql_text(
-            'DELETE FROM quantdb.dataset_object WHERE dataset = :uuid'
-        ),
+        sql_text('DELETE FROM quantdb.dataset_object WHERE dataset = :uuid'),
         {'uuid': MICROCT_UUID},
     )
 
     # Step 7: Delete remaining objects (package + dataset)
     if all_obj_uuids:
         session.execute(
-            sql_text(
-                'DELETE FROM quantdb.objects WHERE id = ANY(:uuids)'
-            ),
+            sql_text('DELETE FROM quantdb.objects WHERE id = ANY(:uuids)'),
             {'uuids': all_obj_uuids},
         )
 
@@ -400,33 +345,17 @@ def _build_fk_lookups(session, models):
     DC = models.DescriptorsCat
     CT = models.ControlledTerms
 
-    desc_inst_map = {
-        row[1]: row[0]
-        for row in session.execute(select(DI.id, DI.label)).all()
-    }
-    desc_quant_map = {
-        row[1]: row[0]
-        for row in session.execute(select(DQ.id, DQ.label)).all()
-    }
-    desc_cat_map = {
-        row[1]: row[0]
-        for row in session.execute(select(DC.id, DC.label)).all()
-    }
-    cterm_map = {
-        row[1]: row[0]
-        for row in session.execute(select(CT.id, CT.label)).all()
-    }
+    desc_inst_map = {row[1]: row[0] for row in session.execute(select(DI.id, DI.label)).all()}
+    desc_quant_map = {row[1]: row[0] for row in session.execute(select(DQ.id, DQ.label)).all()}
+    desc_cat_map = {row[1]: row[0] for row in session.execute(select(DC.id, DC.label)).all()}
+    cterm_map = {row[1]: row[0] for row in session.execute(select(CT.id, CT.label)).all()}
     return desc_inst_map, desc_quant_map, desc_cat_map, cterm_map
 
 
 def _build_instance_lookup(session):
     """Build (dataset_uuid, id_formal) -> values_inst.id lookup."""
     rows = session.execute(
-        sql_text(
-            'SELECT id, CAST(dataset AS text), id_formal'
-            ' FROM quantdb.values_inst'
-            ' WHERE dataset = :uuid'
-        ),
+        sql_text('SELECT id, CAST(dataset AS text), id_formal' ' FROM quantdb.values_inst' ' WHERE dataset = :uuid'),
         {'uuid': MICROCT_UUID},
     ).all()
     return {(row[1], row[2]): row[0] for row in rows}
@@ -509,11 +438,7 @@ def ingest_microct(session, models, data_dicts):
     # ------------------------------------------------------------------
     vi_rows = data_dicts.get('values_inst', [])
     if vi_rows:
-        session.execute(
-            sql_text(
-                'ALTER TABLE quantdb.values_inst DISABLE TRIGGER USER'
-            )
-        )
+        session.execute(sql_text('ALTER TABLE quantdb.values_inst DISABLE TRIGGER USER'))
 
         resolved_vi = [
             {
@@ -529,11 +454,7 @@ def ingest_microct(session, models, data_dicts):
         vi_table = models.ValuesInst.__table__
         session.execute(insert(vi_table), resolved_vi)
 
-        session.execute(
-            sql_text(
-                'ALTER TABLE quantdb.values_inst ENABLE TRIGGER USER'
-            )
-        )
+        session.execute(sql_text('ALTER TABLE quantdb.values_inst ENABLE TRIGGER USER'))
         session.flush()
 
     # Build instance lookup: (dataset_uuid, id_formal) -> int id
@@ -544,18 +465,11 @@ def ingest_microct(session, models, data_dicts):
     # ------------------------------------------------------------------
     ip_rows = data_dicts.get('instance_parent', [])
     if ip_rows:
-        session.execute(
-            sql_text(
-                'ALTER TABLE quantdb.instance_parent'
-                ' DISABLE TRIGGER USER'
-            )
-        )
+        session.execute(sql_text('ALTER TABLE quantdb.instance_parent' ' DISABLE TRIGGER USER'))
 
         resolved_ip = [
             {
-                'id': inst_lookup[
-                    (ip['id']['dataset'], ip['id']['id_formal'])
-                ],
+                'id': inst_lookup[(ip['id']['dataset'], ip['id']['id_formal'])],
                 'parent': inst_lookup[
                     (
                         ip['parent']['dataset'],
@@ -568,12 +482,7 @@ def ingest_microct(session, models, data_dicts):
         ip_table = models.InstanceParent.__table__
         session.execute(insert(ip_table), resolved_ip)
 
-        session.execute(
-            sql_text(
-                'ALTER TABLE quantdb.instance_parent'
-                ' ENABLE TRIGGER USER'
-            )
-        )
+        session.execute(sql_text('ALTER TABLE quantdb.instance_parent' ' ENABLE TRIGGER USER'))
         session.flush()
 
     # ------------------------------------------------------------------
@@ -651,11 +560,7 @@ def ingest_microct(session, models, data_dicts):
     # ------------------------------------------------------------------
     vq_rows = data_dicts.get('values_quant', [])
     if vq_rows:
-        session.execute(
-            sql_text(
-                'ALTER TABLE quantdb.values_quant DISABLE TRIGGER USER'
-            )
-        )
+        session.execute(sql_text('ALTER TABLE quantdb.values_quant DISABLE TRIGGER USER'))
 
         resolved_vq = [
             {
@@ -676,11 +581,7 @@ def ingest_microct(session, models, data_dicts):
         vq_table = models.ValuesQuant.__table__
         session.execute(insert(vq_table), resolved_vq)
 
-        session.execute(
-            sql_text(
-                'ALTER TABLE quantdb.values_quant ENABLE TRIGGER USER'
-            )
-        )
+        session.execute(sql_text('ALTER TABLE quantdb.values_quant ENABLE TRIGGER USER'))
         session.flush()
 
     # ------------------------------------------------------------------
@@ -688,19 +589,13 @@ def ingest_microct(session, models, data_dicts):
     # ------------------------------------------------------------------
     vc_rows = data_dicts.get('values_cat', [])
     if vc_rows:
-        session.execute(
-            sql_text(
-                'ALTER TABLE quantdb.values_cat DISABLE TRIGGER USER'
-            )
-        )
+        session.execute(sql_text('ALTER TABLE quantdb.values_cat DISABLE TRIGGER USER'))
 
         resolved_vc = [
             {
                 'value_open': vc['value_open'],
                 'value_controlled': (
-                    ct_map[vc['value_controlled']]
-                    if vc.get('value_controlled') is not None
-                    else None
+                    ct_map[vc['value_controlled']] if vc.get('value_controlled') is not None else None
                 ),
                 'object': vc['object'],
                 'desc_inst': di_map[vc['desc_inst']],
@@ -717,11 +612,7 @@ def ingest_microct(session, models, data_dicts):
         vc_table = models.ValuesCat.__table__
         session.execute(insert(vc_table), resolved_vc)
 
-        session.execute(
-            sql_text(
-                'ALTER TABLE quantdb.values_cat ENABLE TRIGGER USER'
-            )
-        )
+        session.execute(sql_text('ALTER TABLE quantdb.values_cat ENABLE TRIGGER USER'))
         session.flush()
 
 
@@ -736,24 +627,17 @@ def _count_microct(session, models):
 
     VI = models.ValuesInst
     counts['values_inst'] = session.execute(
-        select(func.count()).select_from(VI).where(
-            VI.dataset == MICROCT_UUID
-        )
+        select(func.count()).select_from(VI).where(VI.dataset == MICROCT_UUID)
     ).scalar_one()
 
     DO = models.DatasetObject
     counts['dataset_object'] = session.execute(
-        select(func.count()).select_from(DO).where(
-            DO.dataset == MICROCT_UUID
-        )
+        select(func.count()).select_from(DO).where(DO.dataset == MICROCT_UUID)
     ).scalar_one()
 
     IP = models.InstanceParent
     counts['instance_parent'] = session.execute(
-        select(func.count())
-        .select_from(IP)
-        .join(VI, IP.id == VI.id)
-        .where(VI.dataset == MICROCT_UUID)
+        select(func.count()).select_from(IP).join(VI, IP.id == VI.id).where(VI.dataset == MICROCT_UUID)
     ).scalar_one()
 
     Obj = models.Objects
@@ -762,46 +646,32 @@ def _count_microct(session, models):
     counts['objects'] = session.execute(
         select(func.count())
         .select_from(Obj)
-        .where(Obj.id.in_(obj_sub.union(select(DO.dataset).where(
-            DO.dataset == MICROCT_UUID
-        ))))
+        .where(Obj.id.in_(obj_sub.union(select(DO.dataset).where(DO.dataset == MICROCT_UUID))))
     ).scalar_one()
 
     VQ = models.ValuesQuant
     counts['values_quant'] = session.execute(
-        select(func.count())
-        .select_from(VQ)
-        .join(DO, VQ.object == DO.object)
-        .where(DO.dataset == MICROCT_UUID)
+        select(func.count()).select_from(VQ).join(DO, VQ.object == DO.object).where(DO.dataset == MICROCT_UUID)
     ).scalar_one()
 
     VC = models.ValuesCat
     counts['values_cat'] = session.execute(
-        select(func.count())
-        .select_from(VC)
-        .join(DO, VC.object == DO.object)
-        .where(DO.dataset == MICROCT_UUID)
+        select(func.count()).select_from(VC).join(DO, VC.object == DO.object).where(DO.dataset == MICROCT_UUID)
     ).scalar_one()
 
     ODI = models.ObjDescInst
     counts['obj_desc_inst'] = session.execute(
-        select(func.count())
-        .select_from(ODI)
-        .where(ODI.object.in_(obj_sub))
+        select(func.count()).select_from(ODI).where(ODI.object.in_(obj_sub))
     ).scalar_one()
 
     ODQ = models.ObjDescQuant
     counts['obj_desc_quant'] = session.execute(
-        select(func.count())
-        .select_from(ODQ)
-        .where(ODQ.object.in_(obj_sub))
+        select(func.count()).select_from(ODQ).where(ODQ.object.in_(obj_sub))
     ).scalar_one()
 
     ODC = models.ObjDescCat
     counts['obj_desc_cat'] = session.execute(
-        select(func.count())
-        .select_from(ODC)
-        .where(ODC.object.in_(obj_sub))
+        select(func.count()).select_from(ODC).where(ODC.object.in_(obj_sub))
     ).scalar_one()
 
     return counts

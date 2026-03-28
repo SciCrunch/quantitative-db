@@ -25,7 +25,7 @@ Source (Cassava/Pennsieve/CSV/GraphML)
 ## Key Relationships
 
 - **objects**: Every entity (dataset, package, internal) registered here. UUID PK.
-- **values_inst**: Instance hierarchy (subjects, samples, sites, fascicles). Each row has (dataset, id_formal, type, desc_inst).
+- **values_inst**: Instance hierarchy (subjects, samples, sites, fascicles). Each row has (dataset, id_formal, type, desc_inst), and `id_sub` is mandatory (`NOT NULL`) for every inserted instance row.
 - **instance_parent**: Parent-child links between values_inst rows.
 - **values_quant/values_cat**: Actual measurements. Each ties (object, instance, descriptor) to a value.
 - **obj_desc_***: Prerequisite "address" rows required before values inserts (enforced by triggers).

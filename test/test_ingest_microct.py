@@ -42,10 +42,17 @@ _SQL_DIR = Path(__file__).resolve().parent.parent / 'sql'
 def _psql(sql=None, *, file=None, database='quantdb_test'):
     """Run psql against the local PostgreSQL instance."""
     cmd = [
-        'psql', '-U', 'postgres',
-        '-h', 'localhost', '-p', '5432',
-        '-d', database,
-        '-v', 'ON_ERROR_STOP=on',
+        'psql',
+        '-U',
+        'postgres',
+        '-h',
+        'localhost',
+        '-p',
+        '5432',
+        '-d',
+        database,
+        '-v',
+        'ON_ERROR_STOP=on',
     ]
     if file is not None:
         cmd.extend(['-f', str(file)])
@@ -304,17 +311,19 @@ def _build_synthetic_data():
     ]:
         obj = _TEST_OBJ1 if 'CL1' in slice_id else _TEST_OBJ2
         for desc in nerve_descs:
-            values_quant.append({
-                'value': val_counter,
-                'value_blob': val_counter,
-                'object': obj,
-                'desc_inst': 'nerve-cross-section',
-                'desc_quant': desc,
-                'instance': {
-                    'dataset': MICROCT_UUID,
-                    'id_formal': slice_id,
-                },
-            })
+            values_quant.append(
+                {
+                    'value': val_counter,
+                    'value_blob': val_counter,
+                    'object': obj,
+                    'desc_inst': 'nerve-cross-section',
+                    'desc_quant': desc,
+                    'instance': {
+                        'dataset': MICROCT_UUID,
+                        'id_formal': slice_id,
+                    },
+                }
+            )
             val_counter += 1.0
 
     # Fascicle measurements (6 fascicles × 7 descs = 42)
@@ -327,17 +336,19 @@ def _build_synthetic_data():
         'nerve-SR042-CL1-trunk-frame-1-fasc-n6',
     ]:
         for desc in fascicle_descs:
-            values_quant.append({
-                'value': val_counter,
-                'value_blob': val_counter,
-                'object': _TEST_OBJ3,
-                'desc_inst': 'fascicle-cross-section',
-                'desc_quant': desc,
-                'instance': {
-                    'dataset': MICROCT_UUID,
-                    'id_formal': fasc_id,
-                },
-            })
+            values_quant.append(
+                {
+                    'value': val_counter,
+                    'value_blob': val_counter,
+                    'object': _TEST_OBJ3,
+                    'desc_inst': 'fascicle-cross-section',
+                    'desc_quant': desc,
+                    'instance': {
+                        'dataset': MICROCT_UUID,
+                        'id_formal': fasc_id,
+                    },
+                }
+            )
             val_counter += 1.0
 
     # Build values_cat: edge properties for fascicles
@@ -356,17 +367,19 @@ def _build_synthetic_data():
         'nerve-SR042-CL1-trunk-frame-1-fasc-n6',
     ]:
         for desc in edge_descs:
-            values_cat.append({
-                'value_controlled': 'true',
-                'value_open': None,
-                'object': _TEST_OBJ3,
-                'desc_inst': 'fascicle-cross-section',
-                'desc_cat': desc,
-                'instance': {
-                    'dataset': MICROCT_UUID,
-                    'id_formal': fasc_id,
-                },
-            })
+            values_cat.append(
+                {
+                    'value_controlled': 'true',
+                    'value_open': None,
+                    'object': _TEST_OBJ3,
+                    'desc_inst': 'fascicle-cross-section',
+                    'desc_cat': desc,
+                    'instance': {
+                        'dataset': MICROCT_UUID,
+                        'id_formal': fasc_id,
+                    },
+                }
+            )
 
     return {
         'objects': objects,
@@ -391,12 +404,12 @@ def _ip(child, parent):
 # ---------------------------------------------------------------------------
 
 EXPECTED_COUNTS = {
-    'objects': 4,         # 1 dataset + 3 package
+    'objects': 4,  # 1 dataset + 3 package
     'dataset_object': 3,
-    'values_inst': 15,    # 1 subject + 2 samples + 2 nerves + 4 slices + 6 fascicles
+    'values_inst': 15,  # 1 subject + 2 samples + 2 nerves + 4 slices + 6 fascicles
     'instance_parent': 14,
-    'values_quant': 74,   # 32 nerve + 42 fascicle
-    'values_cat': 18,     # 6 fascicles × 3 edge descriptors
+    'values_quant': 74,  # 32 nerve + 42 fascicle
+    'values_cat': 18,  # 6 fascicles × 3 edge descriptors
 }
 
 
@@ -461,9 +474,7 @@ def microct_ingested(
     try:
         # Verify no MicroCT data exists yet
         pre_counts = _count_microct(sess, reflected)
-        assert pre_counts['values_inst'] == 0, (
-            'MicroCT data already exists in DB'
-        )
+        assert pre_counts['values_inst'] == 0, 'MicroCT data already exists in DB'
 
         # ---- Phase 1: Ingest synthetic data ----
         data_dicts = _build_synthetic_data()
@@ -487,9 +498,7 @@ def microct_ingested(
         # Verify zeros
         zero_counts = _count_microct(sess, reflected)
         for table_name, count in zero_counts.items():
-            assert count == 0, (
-                f'{table_name}: expected 0 after deletion, got {count}'
-            )
+            assert count == 0, f'{table_name}: expected 0 after deletion, got {count}'
 
         # Re-ingest from DB-extracted data
         ingest_microct(sess, reflected, db_data)
@@ -512,32 +521,22 @@ def _count_f006(session, models):
     counts = {}
     VI = models.ValuesInst
     counts['values_inst'] = session.execute(
-        select(func.count()).select_from(VI).where(
-            VI.dataset == F006_UUID
-        )
+        select(func.count()).select_from(VI).where(VI.dataset == F006_UUID)
     ).scalar_one()
 
     DO = models.DatasetObject
     counts['dataset_object'] = session.execute(
-        select(func.count()).select_from(DO).where(
-            DO.dataset == F006_UUID
-        )
+        select(func.count()).select_from(DO).where(DO.dataset == F006_UUID)
     ).scalar_one()
 
     VQ = models.ValuesQuant
     counts['values_quant'] = session.execute(
-        select(func.count())
-        .select_from(VQ)
-        .join(DO, VQ.object == DO.object)
-        .where(DO.dataset == F006_UUID)
+        select(func.count()).select_from(VQ).join(DO, VQ.object == DO.object).where(DO.dataset == F006_UUID)
     ).scalar_one()
 
     VC = models.ValuesCat
     counts['values_cat'] = session.execute(
-        select(func.count())
-        .select_from(VC)
-        .join(DO, VC.object == DO.object)
-        .where(DO.dataset == F006_UUID)
+        select(func.count()).select_from(VC).join(DO, VC.object == DO.object).where(DO.dataset == F006_UUID)
     ).scalar_one()
 
     return counts
@@ -550,7 +549,8 @@ def _count_f006(session, models):
 
 def _sample_values_quant(session, limit=100):
     """Capture a deterministic sample of values_quant rows."""
-    stmt = sql_text("""
+    stmt = sql_text(
+        """
         SELECT CAST(vq.value AS text) AS value_str,
                CAST(vq.value_blob AS text) AS value_blob_str,
                vi.id_formal AS instance_id_formal,
@@ -565,10 +565,9 @@ def _sample_values_quant(session, limit=100):
         )
         ORDER BY vi.id_formal, dq.label, CAST(vq.object AS text)
         LIMIT :lim
-    """)
-    rows = session.execute(
-        stmt, {'uuid': MICROCT_UUID, 'lim': limit}
-    ).all()
+    """
+    )
+    rows = session.execute(stmt, {'uuid': MICROCT_UUID, 'lim': limit}).all()
     return [
         {
             'value': r[0],
@@ -583,7 +582,8 @@ def _sample_values_quant(session, limit=100):
 
 def _sample_values_cat(session, limit=100):
     """Capture a deterministic sample of values_cat rows."""
-    stmt = sql_text("""
+    stmt = sql_text(
+        """
         SELECT vc.value_open,
                ct.label AS value_controlled_label,
                vi.id_formal AS instance_id_formal,
@@ -600,10 +600,9 @@ def _sample_values_cat(session, limit=100):
         )
         ORDER BY vi.id_formal, dc.label, CAST(vc.object AS text)
         LIMIT :lim
-    """)
-    rows = session.execute(
-        stmt, {'uuid': MICROCT_UUID, 'lim': limit}
-    ).all()
+    """
+    )
+    rows = session.execute(stmt, {'uuid': MICROCT_UUID, 'lim': limit}).all()
     return [
         {
             'value_open': r[0],
@@ -718,7 +717,8 @@ class TestInstanceHierarchy:
     """Verify every non-root has parent, no orphans."""
 
     def test_every_nonroot_has_parent(self, microct_ingested, reflected):
-        orphan_stmt = sql_text("""
+        orphan_stmt = sql_text(
+            """
             SELECT COUNT(*)
             FROM quantdb.values_inst vi
             WHERE vi.dataset = :uuid
@@ -728,16 +728,14 @@ class TestInstanceHierarchy:
                 JOIN quantdb.values_inst v2 ON ip.id = v2.id
                 WHERE v2.dataset = :uuid
             )
-        """)
-        orphan_count = microct_ingested.execute(
-            orphan_stmt, {'uuid': MICROCT_UUID}
-        ).scalar_one()
-        assert orphan_count == 0, (
-            f'{orphan_count} non-subject instances without parent'
+        """
         )
+        orphan_count = microct_ingested.execute(orphan_stmt, {'uuid': MICROCT_UUID}).scalar_one()
+        assert orphan_count == 0, f'{orphan_count} non-subject instances without parent'
 
     def test_no_dangling_parent_refs(self, microct_ingested, reflected):
-        dangling_stmt = sql_text("""
+        dangling_stmt = sql_text(
+            """
             SELECT COUNT(*)
             FROM quantdb.instance_parent ip
             JOIN quantdb.values_inst cv ON ip.id = cv.id
@@ -745,13 +743,10 @@ class TestInstanceHierarchy:
             AND ip.parent NOT IN (
                 SELECT id FROM quantdb.values_inst
             )
-        """)
-        dangling_count = microct_ingested.execute(
-            dangling_stmt, {'uuid': MICROCT_UUID}
-        ).scalar_one()
-        assert dangling_count == 0, (
-            f'{dangling_count} dangling parent references'
+        """
         )
+        dangling_count = microct_ingested.execute(dangling_stmt, {'uuid': MICROCT_UUID}).scalar_one()
+        assert dangling_count == 0, f'{dangling_count} dangling parent references'
 
 
 # ===================================================================
@@ -763,7 +758,8 @@ class TestValuesReferenceValidInstances:
     """Verify no orphaned values."""
 
     def test_values_quant_no_orphans(self, microct_ingested, reflected):
-        orphan_stmt = sql_text("""
+        orphan_stmt = sql_text(
+            """
             SELECT COUNT(*)
             FROM quantdb.values_quant vq
             WHERE vq.object IN (
@@ -773,14 +769,14 @@ class TestValuesReferenceValidInstances:
             AND vq.instance NOT IN (
                 SELECT id FROM quantdb.values_inst
             )
-        """)
-        count = microct_ingested.execute(
-            orphan_stmt, {'uuid': MICROCT_UUID}
-        ).scalar_one()
+        """
+        )
+        count = microct_ingested.execute(orphan_stmt, {'uuid': MICROCT_UUID}).scalar_one()
         assert count == 0, f'{count} orphaned values_quant rows'
 
     def test_values_cat_no_orphans(self, microct_ingested, reflected):
-        orphan_stmt = sql_text("""
+        orphan_stmt = sql_text(
+            """
             SELECT COUNT(*)
             FROM quantdb.values_cat vc
             WHERE vc.object IN (
@@ -790,10 +786,9 @@ class TestValuesReferenceValidInstances:
             AND vc.instance NOT IN (
                 SELECT id FROM quantdb.values_inst
             )
-        """)
-        count = microct_ingested.execute(
-            orphan_stmt, {'uuid': MICROCT_UUID}
-        ).scalar_one()
+        """
+        )
+        count = microct_ingested.execute(orphan_stmt, {'uuid': MICROCT_UUID}).scalar_one()
         assert count == 0, f'{count} orphaned values_cat rows'
 
 
@@ -810,29 +805,18 @@ class TestSpotCheckValues:
         assert len(baseline) > 0, 'No baseline quant samples captured'
 
         post = _sample_values_quant(microct_ingested)
-        assert len(post) == len(baseline), (
-            f'Expected {len(baseline)} rows, got {len(post)}'
-        )
+        assert len(post) == len(baseline), f'Expected {len(baseline)} rows, got {len(post)}'
 
         for i, (bl, pi) in enumerate(zip(baseline, post)):
-            assert bl['instance_id_formal'] == pi['instance_id_formal'], (
-                f'Row {i}: instance mismatch'
+            assert bl['instance_id_formal'] == pi['instance_id_formal'], f'Row {i}: instance mismatch'
+            assert bl['desc_quant_label'] == pi['desc_quant_label'], f'Row {i}: desc_quant mismatch'
+            assert bl['object_uuid'] == pi['object_uuid'], f'Row {i}: object mismatch'
+            assert _normalize_numeric_str(bl['value']) == _normalize_numeric_str(pi['value']), (
+                f'Row {i}: value mismatch: ' f'{bl["value"]!r} != {pi["value"]!r}'
             )
-            assert bl['desc_quant_label'] == pi['desc_quant_label'], (
-                f'Row {i}: desc_quant mismatch'
-            )
-            assert bl['object_uuid'] == pi['object_uuid'], (
-                f'Row {i}: object mismatch'
-            )
-            assert _normalize_numeric_str(bl['value']) == \
-                _normalize_numeric_str(pi['value']), (
-                    f'Row {i}: value mismatch: '
-                    f'{bl["value"]!r} != {pi["value"]!r}'
-                )
-            assert _normalize_numeric_str(bl['value_blob']) == \
-                _normalize_numeric_str(pi['value_blob']), (
-                    f'Row {i}: value_blob mismatch'
-                )
+            assert _normalize_numeric_str(bl['value_blob']) == _normalize_numeric_str(
+                pi['value_blob']
+            ), f'Row {i}: value_blob mismatch'
 
     def test_spot_check_values_cat(self, microct_ingested, reflected):
         baseline = _baseline_cat_samples
@@ -846,8 +830,7 @@ class TestSpotCheckValues:
             assert bl['instance_id_formal'] == pi['instance_id_formal']
             assert bl['desc_cat_label'] == pi['desc_cat_label']
             assert bl['object_uuid'] == pi['object_uuid']
-            assert bl['value_controlled_label'] == \
-                pi['value_controlled_label']
+            assert bl['value_controlled_label'] == pi['value_controlled_label']
 
 
 # ===================================================================
@@ -908,8 +891,7 @@ class TestRoundtripCounts:
         post = _count_microct(microct_ingested, reflected)
         for table_name in _first_ingest_counts:
             assert _first_ingest_counts[table_name] == post[table_name], (
-                f'{table_name}: first={_first_ingest_counts[table_name]}, '
-                f'roundtrip={post[table_name]}'
+                f'{table_name}: first={_first_ingest_counts[table_name]}, ' f'roundtrip={post[table_name]}'
             )
 
 
@@ -921,9 +903,7 @@ class TestRoundtripCounts:
 class TestRoundtripSpotCheck:
     """Spot-check values after round-trip."""
 
-    def test_roundtrip_spot_check_quant(
-        self, microct_ingested, reflected
-    ):
+    def test_roundtrip_spot_check_quant(self, microct_ingested, reflected):
         baseline = _baseline_quant_samples
         assert len(baseline) > 0
         post = _sample_values_quant(microct_ingested)
@@ -931,8 +911,7 @@ class TestRoundtripSpotCheck:
 
         mismatches = 0
         for bl, pi in zip(baseline, post):
-            if _normalize_numeric_str(bl['value']) != \
-               _normalize_numeric_str(pi['value']):
+            if _normalize_numeric_str(bl['value']) != _normalize_numeric_str(pi['value']):
                 mismatches += 1
         assert mismatches == 0, f'{mismatches} value mismatches'
 
@@ -954,17 +933,14 @@ class TestIdempotent:
 
         zero = _count_microct(microct_ingested, reflected)
         for table_name, count in zero.items():
-            assert count == 0, (
-                f'{table_name}: expected 0 after 2nd delete, got {count}'
-            )
+            assert count == 0, f'{table_name}: expected 0 after 2nd delete, got {count}'
 
         ingest_microct(microct_ingested, reflected, data2)
 
         second_counts = _count_microct(microct_ingested, reflected)
         for table_name in first_counts:
             assert first_counts[table_name] == second_counts[table_name], (
-                f'{table_name}: first={first_counts[table_name]}, '
-                f'second={second_counts[table_name]}'
+                f'{table_name}: first={first_counts[table_name]}, ' f'second={second_counts[table_name]}'
             )
 
 
