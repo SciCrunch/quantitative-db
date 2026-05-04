@@ -1,0 +1,228 @@
+{
+  "groupId": "schema-graph-cli",
+  "testedAt": "2026-03-24T20:17:00.853773+00:00",
+  "isolation": {
+    "surface": "pytest CLI / direct Python import checks",
+    "python": "/Users/tmsincomb/miniforge3/envs/quantdb/bin/python3",
+    "database": "localhost:5432 / quantdb_test",
+    "engineConstruction": "explicit localhost create_engine(dbUri('quantdb-test-user', 'localhost', 5432, 'quantdb_test'))",
+    "repoRoot": "/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db",
+    "missionDir": "/Users/tmsincomb/.factory/missions/c788d974-b8aa-476d-b915-9faa04b68ace"
+  },
+  "toolsUsed": [
+    "Execute"
+  ],
+  "commands": [
+    {
+      "name": "pytest-schema-tests",
+      "command": "/Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pytest /Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/test/test_generic_ingest.py -v --no-header -x",
+      "exitCode": 0,
+      "evidence": "schema-engine/schema-graph-cli/pytest-test_generic_ingest.txt",
+      "observation": "39 tests passed in 0.12s"
+    },
+    {
+      "name": "direct-schema-graph-check",
+      "command": "/Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 - <<'PY'\nfrom sqlalchemy import create_engine, event\nfrom quantdb.generic_ingest import SchemaGraph\nfrom quantdb.models import reflect_models\nfrom quantdb.utils import dbUri\n\nengine = create_engine(dbUri('quantdb-test-user', 'localhost', 5432, 'quantdb_test'))\n\n@event.listens_for(engine, 'connect')\ndef _set_search_path(dbapi_connection, connection_record):\n    cursor = dbapi_connection.cursor()\n    cursor.execute('SET search_path TO quantdb, public')\n    cursor.close()\n\nmodels = reflect_models(engine=engine)\nprint(f\"schema_graph_type={type(models.schema_graph).__name__}\")\nprint(f\"table_count={len(models.schema_graph.tables)}\")\nprint(f\"topo_order_count={len(models.schema_graph.topo_order)}\")\nprint(f\"has_objects_cycle={frozenset(['objects', 'objects_internal']) in models.schema_graph.circular_deps}\")\nmodels.engine.dispose()\nPY",
+      "exitCode": 0,
+      "evidence": "schema-engine/schema-graph-cli/schema_graph_direct_check.txt",
+      "observation": "Printed schema_graph_type=SchemaGraph, table_count=20, topo_order_count=20, has_objects_cycle=True"
+    }
+  ],
+  "assertions": [
+    {
+      "id": "VAL-SCHEMA-001",
+      "title": "SchemaGraph builds from reflected models",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run SchemaGraph build tests in test/test_generic_ingest.py",
+          "expected": "SchemaGraph builds from ReflectedModels and exposes all 20 quantdb tables",
+          "observed": "pytest passed test_builds_without_errors, test_tables_dict_has_20_entries, and test_all_table_infos_are_correct_type"
+        },
+        {
+          "action": "Run explicit localhost direct import check",
+          "expected": "schema_graph field is a SchemaGraph instance with 20 tables",
+          "observed": "Direct check printed schema_graph_type=SchemaGraph and table_count=20"
+        }
+      ],
+      "evidence": {
+        "terminalSnapshots": [
+          "schema-engine/schema-graph-cli/pytest-test_generic_ingest.txt",
+          "schema-engine/schema-graph-cli/schema_graph_direct_check.txt"
+        ],
+        "commands": [
+          "/Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pytest /Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/test/test_generic_ingest.py -v --no-header -x",
+          "/Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 - <<'PY'\nfrom sqlalchemy import create_engine, event\nfrom quantdb.generic_ingest import SchemaGraph\nfrom quantdb.models import reflect_models\nfrom quantdb.utils import dbUri\n\nengine = create_engine(dbUri('quantdb-test-user', 'localhost', 5432, 'quantdb_test'))\n\n@event.listens_for(engine, 'connect')\ndef _set_search_path(dbapi_connection, connection_record):\n    cursor = dbapi_connection.cursor()\n    cursor.execute('SET search_path TO quantdb, public')\n    cursor.close()\n\nmodels = reflect_models(engine=engine)\nprint(f\"schema_graph_type={type(models.schema_graph).__name__}\")\nprint(f\"table_count={len(models.schema_graph.tables)}\")\nprint(f\"topo_order_count={len(models.schema_graph.topo_order)}\")\nprint(f\"has_objects_cycle={frozenset(['objects', 'objects_internal']) in models.schema_graph.circular_deps}\")\nmodels.engine.dispose()\nPY"
+        ],
+        "network": "localhost:5432 / quantdb_test only"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-SCHEMA-002",
+      "title": "Topological sort produces correct insert order",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run topological ordering assertions",
+          "expected": "Root tables precede leaves and no table appears before its FK dependencies",
+          "observed": "pytest passed test_root_tables_before_leaf_tables, test_no_table_before_its_dependencies, test_topo_order_contains_all_tables, and test_topo_levels_are_non_negative"
+        }
+      ],
+      "evidence": {
+        "terminalSnapshots": [
+          "schema-engine/schema-graph-cli/pytest-test_generic_ingest.txt"
+        ],
+        "commands": [
+          "/Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pytest /Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/test/test_generic_ingest.py -v --no-header -x"
+        ],
+        "network": "localhost:5432 / quantdb_test only"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-SCHEMA-003",
+      "title": "FK map covers all FK columns",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run FK map coverage assertions",
+          "expected": "Key tables and all single-column FK columns have FKInfo entries",
+          "observed": "pytest passed test_descriptors_quant_fk_map, test_values_quant_fk_map, test_fk_info_has_target_natural_key, test_fk_info_has_target_model, and test_every_fk_col_has_entry"
+        }
+      ],
+      "evidence": {
+        "terminalSnapshots": [
+          "schema-engine/schema-graph-cli/pytest-test_generic_ingest.txt"
+        ],
+        "commands": [
+          "/Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pytest /Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/test/test_generic_ingest.py -v --no-header -x"
+        ],
+        "network": "localhost:5432 / quantdb_test only"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-SCHEMA-004",
+      "title": "Natural key detection finds correct unique constraints",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run natural key assertions",
+          "expected": "Natural keys match the contract for label, addresses, and values_inst tables",
+          "observed": "pytest passed the parametrized label-key checks plus test_addresses_natural_key and test_values_inst_natural_key"
+        }
+      ],
+      "evidence": {
+        "terminalSnapshots": [
+          "schema-engine/schema-graph-cli/pytest-test_generic_ingest.txt"
+        ],
+        "commands": [
+          "/Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pytest /Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/test/test_generic_ingest.py -v --no-header -x"
+        ],
+        "network": "localhost:5432 / quantdb_test only"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-SCHEMA-005",
+      "title": "Circular dependency detected",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run circular dependency assertions",
+          "expected": "SchemaGraph.circular_deps is non-empty and contains objects <-> objects_internal",
+          "observed": "pytest passed test_circular_deps_non_empty and test_objects_objects_internal_pair; direct check also printed has_objects_cycle=True"
+        }
+      ],
+      "evidence": {
+        "terminalSnapshots": [
+          "schema-engine/schema-graph-cli/pytest-test_generic_ingest.txt",
+          "schema-engine/schema-graph-cli/schema_graph_direct_check.txt"
+        ],
+        "commands": [
+          "/Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pytest /Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/test/test_generic_ingest.py -v --no-header -x",
+          "/Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 - <<'PY'\nfrom sqlalchemy import create_engine, event\nfrom quantdb.generic_ingest import SchemaGraph\nfrom quantdb.models import reflect_models\nfrom quantdb.utils import dbUri\n\nengine = create_engine(dbUri('quantdb-test-user', 'localhost', 5432, 'quantdb_test'))\n\n@event.listens_for(engine, 'connect')\ndef _set_search_path(dbapi_connection, connection_record):\n    cursor = dbapi_connection.cursor()\n    cursor.execute('SET search_path TO quantdb, public')\n    cursor.close()\n\nmodels = reflect_models(engine=engine)\nprint(f\"schema_graph_type={type(models.schema_graph).__name__}\")\nprint(f\"table_count={len(models.schema_graph.tables)}\")\nprint(f\"topo_order_count={len(models.schema_graph.topo_order)}\")\nprint(f\"has_objects_cycle={frozenset(['objects', 'objects_internal']) in models.schema_graph.circular_deps}\")\nmodels.engine.dispose()\nPY"
+        ],
+        "network": "localhost:5432 / quantdb_test only"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-SCHEMA-006",
+      "title": "Table classification is correct",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run lookup/data table classification assertions",
+          "expected": "Lookup tables are flagged true and data tables false",
+          "observed": "pytest passed all lookup-table and data-table parametrized classification checks"
+        }
+      ],
+      "evidence": {
+        "terminalSnapshots": [
+          "schema-engine/schema-graph-cli/pytest-test_generic_ingest.txt"
+        ],
+        "commands": [
+          "/Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pytest /Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/test/test_generic_ingest.py -v --no-header -x"
+        ],
+        "network": "localhost:5432 / quantdb_test only"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-SCHEMA-007",
+      "title": "Association tables handled",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run association table assertions",
+          "expected": "All 5 association tables are present with correct composite PKs",
+          "observed": "pytest passed the five parametrized PK checks and test_all_five_association_tables"
+        }
+      ],
+      "evidence": {
+        "terminalSnapshots": [
+          "schema-engine/schema-graph-cli/pytest-test_generic_ingest.txt"
+        ],
+        "commands": [
+          "/Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pytest /Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/test/test_generic_ingest.py -v --no-header -x"
+        ],
+        "network": "localhost:5432 / quantdb_test only"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-SCHEMA-008",
+      "title": "SchemaGraph on ReflectedModels",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run ReflectedModels integration assertions",
+          "expected": "reflect_models returns a ReflectedModels object with non-null schema_graph of type SchemaGraph",
+          "observed": "pytest passed test_schema_graph_field_exists, test_schema_graph_is_correct_type, and test_schema_graph_not_none"
+        },
+        {
+          "action": "Run explicit localhost direct import check",
+          "expected": "Direct import shows schema_graph field is populated",
+          "observed": "Direct check printed schema_graph_type=SchemaGraph, table_count=20, and topo_order_count=20"
+        }
+      ],
+      "evidence": {
+        "terminalSnapshots": [
+          "schema-engine/schema-graph-cli/pytest-test_generic_ingest.txt",
+          "schema-engine/schema-graph-cli/schema_graph_direct_check.txt"
+        ],
+        "commands": [
+          "/Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pytest /Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/test/test_generic_ingest.py -v --no-header -x",
+          "/Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 - <<'PY'\nfrom sqlalchemy import create_engine, event\nfrom quantdb.generic_ingest import SchemaGraph\nfrom quantdb.models import reflect_models\nfrom quantdb.utils import dbUri\n\nengine = create_engine(dbUri('quantdb-test-user', 'localhost', 5432, 'quantdb_test'))\n\n@event.listens_for(engine, 'connect')\ndef _set_search_path(dbapi_connection, connection_record):\n    cursor = dbapi_connection.cursor()\n    cursor.execute('SET search_path TO quantdb, public')\n    cursor.close()\n\nmodels = reflect_models(engine=engine)\nprint(f\"schema_graph_type={type(models.schema_graph).__name__}\")\nprint(f\"table_count={len(models.schema_graph.tables)}\")\nprint(f\"topo_order_count={len(models.schema_graph.topo_order)}\")\nprint(f\"has_objects_cycle={frozenset(['objects', 'objects_internal']) in models.schema_graph.circular_deps}\")\nmodels.engine.dispose()\nPY"
+        ],
+        "network": "localhost:5432 / quantdb_test only"
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 8 assigned schema assertions through the pytest CLI and an explicit localhost direct import check; all 8 passed."
+}

@@ -1,7 +1,7 @@
 import json
 import pathlib
 import sys
-from collections import defaultdict, Counter
+from collections import Counter, defaultdict
 from itertools import chain
 
 import idlib
@@ -9,10 +9,12 @@ import requests
 from dateutil import parser as dateparser
 from pyontutils.utils_fast import chunk_list
 from sparcur import objects as sparcur_objects  # register pathmeta type
+from sparcur.idmap import identifier_indexes
 from sparcur.paths import Path
 from sparcur.utils import PennsieveId as RemoteId
-from sparcur.utils import fromJson, log as _slog, register_type
-from sparcur.idmap import identifier_indexes
+from sparcur.utils import fromJson
+from sparcur.utils import log as _slog
+from sparcur.utils import register_type
 from sqlalchemy import create_engine
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Session
@@ -22,13 +24,13 @@ from sqlalchemy.sql import text as sql_text
 from quantdb.utils import dbUri, isoformat, log
 
 # good trick for truncating insane errors messages
-#import sys
+# import sys
 #
-#class DevNull:
+# class DevNull:
 #    def write(self, msg):
 #        pass
 #
-#sys.stderr = DevNull()
+# sys.stderr = DevNull()
 
 # from pyontutils.identity_bnode
 def toposort(adj, unmarked_key=None):
@@ -44,11 +46,13 @@ def toposort(adj, unmarked_key=None):
     unmarked = sorted((_keys | _values), key=unmarked_key)
     temp = set()
     out = []
+
     def visit(n):
         if n not in unmarked:
             return
         if n in temp:
             import pprint
+
             raise Exception(f'oops you have a cycle {n}\n{pprint.pformat(n)}', n)
 
         temp.add(n)
@@ -76,6 +80,7 @@ def subst_toposort(edges, unmarked_key=None):
     flop = {v: k for k, v in flip.items()}
     fedges = [tuple(flip[e] for e in edge) for edge in edges]
     if unmarked_key is not None:
+
         def unmarked_key(k, _unmarked_key=unmarked_key):
             return _unmarked_key(flop[k])
 
@@ -126,6 +131,7 @@ def sort_parents(parents):
         sasa_parents = s_parents[b_sam:] if e_sam is None else s_parents[b_sam:e_sam]
         post_sasa_parents = [] if e_sam is None else s_parents[e_sam:]
         sord = subst_toposort([((a, b), (a, c)) for a, b, c in sasa_parents])
+
         def ssord(abc):
             a, b, c = abc
             return sord.index((a, b)), sord.index((a, c))
@@ -158,9 +164,8 @@ except NameError:
 def check_parents_instances(instances, parents):
     # also transitive check needed
     parents_direct_ss = set(
-        (s, r[k]) for (d, s), r in instances.items()
-        for k in ('id_sub', 'id_sam')
-        if k in r and s != r[k])
+        (s, r[k]) for (d, s), r in instances.items() for k in ('id_sub', 'id_sam') if k in r and s != r[k]
+    )
     parents_direct = set((c, p) for d, c, p in parents)
     diff = parents_direct_ss - parents_direct
     starts = set(a for a, b in parents_direct)
@@ -381,6 +386,8 @@ def proc_anat(rawind):
 _translate_species = {}
 _translate_species['ncbitaxon:9606'] = 'human'  # oof
 _translate_species['http://purl.obolibrary.org/obo/NCBITaxon_9606'] = 'human'
+
+
 def translate_species(v):
     if isinstance(v, dict):
         v = v['id']
@@ -396,12 +403,16 @@ _translate_sample_type = {
     'section': 'nerve-cross-section',
     'virtual': 'simulation',  # FIXME and here we see why I didn't want to do it this way, because it is a virtual something and we want the something
 }
+
+
 def translate_sample_type(v):
     return _translate_sample_type[v]
 
 
 _translate_site_type = {}
 _translate_site_type['extruded plane'] = 'extruded-plane'
+
+
 def translate_site_type(v):
     return _translate_site_type[v]
 
@@ -438,7 +449,9 @@ def pps(path_structure, dataset_metadata=None):
                 # not actually segment, usually level
                 segment = site_meta['specimen_id']
             else:
-                segment = None  # FIXME without sites metadata we can't determine the actual sample so have to backfill later
+                segment = (
+                    None  # FIXME without sites metadata we can't determine the actual sample so have to backfill later
+                )
 
         if segment is not None and segment.count('-') > 3:
             level = segment
@@ -457,11 +470,11 @@ def pps(path_structure, dataset_metadata=None):
         raise NotImplementedError(path_structure)
 
     # XXX folder structure CANNOT be used to infer direct parent structure
-    #p1 = sam_1, subject  # child, parent to match db convention wasDerivedFrom
-    #p2 = segment, sam_1
-    #if level is None:
+    # p1 = sam_1, subject  # child, parent to match db convention wasDerivedFrom
+    # p2 = segment, sam_1
+    # if level is None:
     #    parents = (p1, p2)
-    #else:
+    # else:
     #    parents = (p1,)  # get it from metadata
     parents = tuple()
 
@@ -559,8 +572,8 @@ class Queries:
             if out is None:
                 raise ValueError(f'needed a result here {params}')
             else:
-                #kp = 'qdfi' if 'fiber' in label else 'qd'  # FIXME sigh XXX actually wasn't the issue i think?
-                #k = kp, out
+                # kp = 'qdfi' if 'fiber' in label else 'qd'  # FIXME sigh XXX actually wasn't the issue i think?
+                # k = kp, out
                 self._inv['qd', out] = params
                 return out
 
@@ -605,14 +618,13 @@ class Queries:
 
 
 class InternalIds:
-
     def reg_qd(self, qd_label):
         if qd_label not in self._qdmap:
             qd = self._q.desc_quant_from_label(qd_label)
             if qd is None:
                 raise KeyError(qd_label)
 
-            self._qdmap[qd_label] =  qd
+            self._qdmap[qd_label] = qd
 
         return self._qdmap[qd_label]
 
@@ -631,7 +643,6 @@ class InternalIds:
         self._addrmap = {}
         q = queries
         self._q = queries
-
 
         self.addr_index = q.address_from_fadd_type_fadd('record-index', None)
 
@@ -715,12 +726,24 @@ class InternalIds:
             'json-path-with-types', '#/path-metadata/data/#int/dataset_relative_path#derive-sample-id'
         )
 
-        self.addr_jp_dm_sub_id = q.address_from_fadd_type_fadd('json-path-with-types', '#/curation-export/subjects/#int/subject_id')
-        self.addr_jp_dm_sub_ty = q.address_from_fadd_type_fadd('json-path-with-types', '#/curation-export/subjects/#int/species#translate_species')
-        self.addr_jp_dm_sam_id = q.address_from_fadd_type_fadd('json-path-with-types', '#/curation-export/samples/#int/sample_id')
-        self.addr_jp_dm_sam_ty = q.address_from_fadd_type_fadd('json-path-with-types', '#/curation-export/samples/#int/sample_type#translate_sample_type')
-        self.addr_jp_dm_site_id = q.address_from_fadd_type_fadd('json-path-with-types', '#/curation-export/sites/#int/site_id')
-        self.addr_jp_dm_site_ty = q.address_from_fadd_type_fadd('json-path-with-types', '#/curation-export/sites/#int/sites_type#translate_sites_type')
+        self.addr_jp_dm_sub_id = q.address_from_fadd_type_fadd(
+            'json-path-with-types', '#/curation-export/subjects/#int/subject_id'
+        )
+        self.addr_jp_dm_sub_ty = q.address_from_fadd_type_fadd(
+            'json-path-with-types', '#/curation-export/subjects/#int/species#translate_species'
+        )
+        self.addr_jp_dm_sam_id = q.address_from_fadd_type_fadd(
+            'json-path-with-types', '#/curation-export/samples/#int/sample_id'
+        )
+        self.addr_jp_dm_sam_ty = q.address_from_fadd_type_fadd(
+            'json-path-with-types', '#/curation-export/samples/#int/sample_type#translate_sample_type'
+        )
+        self.addr_jp_dm_site_id = q.address_from_fadd_type_fadd(
+            'json-path-with-types', '#/curation-export/sites/#int/site_id'
+        )
+        self.addr_jp_dm_site_ty = q.address_from_fadd_type_fadd(
+            'json-path-with-types', '#/curation-export/sites/#int/sites_type#translate_sites_type'
+        )
 
         self.addr_jpspec = q.address_from_fadd_type_fadd('json-path-with-types', '#/local/tom-made-it-up/species')
         self.addr_jpsaty = q.address_from_fadd_type_fadd('json-path-with-types', '#/local/tom-made-it-up/sample_type')
@@ -805,6 +828,8 @@ class Inserts:
 
 
 luinst = {}
+
+
 def ingest(dataset_uuid, extract_fun, session, commit=False, dev=False, values_args=None, **kwargs):
     """generic ingest workflow
     this_dataset_updated_uuid might not be needed in future,
@@ -891,7 +916,9 @@ def ingest(dataset_uuid, extract_fun, session, commit=False, dev=False, values_a
     for chunk in chunk_list(values_instances, batchsize):
         vt, params = makeParamsValues(chunk)
         session.execute(
-            sql_text(f'INSERT INTO values_inst (dataset, id_formal, type, desc_inst, id_sub, id_sam) VALUES {vt}{ocdn}'),
+            sql_text(
+                f'INSERT INTO values_inst (dataset, id_formal, type, desc_inst, id_sub, id_sam) VALUES {vt}{ocdn}'
+            ),
             params,
         )
         if commit:
@@ -930,7 +957,8 @@ def ingest(dataset_uuid, extract_fun, session, commit=False, dev=False, values_a
     for chunk in chunk_list(void, batchsize):
         vt, params = makeParamsValues(chunk)
         session.execute(
-            sql_text(f'INSERT INTO obj_desc_inst (object, desc_inst, addr_field, addr_desc_inst) VALUES {vt}{ocdn}'), params
+            sql_text(f'INSERT INTO obj_desc_inst (object, desc_inst, addr_field, addr_desc_inst) VALUES {vt}{ocdn}'),
+            params,
         )
         if commit:
             session.commit()
@@ -938,7 +966,9 @@ def ingest(dataset_uuid, extract_fun, session, commit=False, dev=False, values_a
     if vocd:
         for chunk in chunk_list(vocd, batchsize):
             vt, params = makeParamsValues(chunk)
-            session.execute(sql_text(f'INSERT INTO obj_desc_cat (object, desc_cat, addr_field) VALUES {vt}{ocdn}'), params)
+            session.execute(
+                sql_text(f'INSERT INTO obj_desc_cat (object, desc_cat, addr_field) VALUES {vt}{ocdn}'), params
+            )
             if commit:
                 session.commit()
 
@@ -1001,7 +1031,9 @@ def extract_reva_ft(dataset_uuid, source_local=False, visualize=False):
             blob_dataset = json.load(f)
     else:
 
-        resp_dataset = requests.get(f'https://cassava.ucsd.edu/sparc/datasets/{dataset_uuid}/LATEST/curation-export.json')
+        resp_dataset = requests.get(
+            f'https://cassava.ucsd.edu/sparc/datasets/{dataset_uuid}/LATEST/curation-export.json'
+        )
         blob_dataset = resp_dataset.json()
 
         resp = requests.get(f'https://cassava.ucsd.edu/sparc/datasets/{dataset_uuid}/LATEST/path-metadata.json')
@@ -1025,8 +1057,15 @@ def extract_reva_ft(dataset_uuid, source_local=False, visualize=False):
 
     exts = [ext_pmeta(j) for j in jpx]
 
-    (instances, _parents, objects, values_objects, values_dataset_object, _, _, #values_q, values_c
-     ) = ext_values(exts, dataset_metadata=ir_dataset)
+    (
+        instances,
+        _parents,
+        objects,
+        values_objects,
+        values_dataset_object,
+        _,
+        _,  # values_q, values_c
+    ) = ext_values(exts, dataset_metadata=ir_dataset)
     parents = _parents  # yes this is empty
 
     # hrm = sorted(exts, key=lambda j: j['raw_anat_index'])
@@ -1034,7 +1073,7 @@ def extract_reva_ft(dataset_uuid, source_local=False, visualize=False):
     # import math
     # log_max_rai = math.log10(max_rai)
 
-    ''' # old see proc_anat
+    """ # old see proc_anat
     # normalize the index by mapping distinct values to the integers
     nondist = sorted([e['raw_anat_index_v2'] for e in exts])
     lin_distinct = {v: i for i, v in enumerate(sorted(set([e['raw_anat_index_v2'] for e in exts])))}
@@ -1146,7 +1185,7 @@ def extract_reva_ft(dataset_uuid, source_local=False, visualize=False):
         if o['id_type'] != 'dataset'  # already did it above
     ]
     values_dataset_object = dataset_object
-    #'''
+    #"""
 
     def make_values_instances(i):
         values_instances = [
@@ -1254,17 +1293,19 @@ def extract_reva_ft(dataset_uuid, source_local=False, visualize=False):
         return values_cv
 
     def make_values_quant(this_dataset_updated_uuid, i, luinst):
-        srs = {k:v  for k, v in instances.items() if v['type'] == 'sample'}
+        srs = {k: v for k, v in instances.items() if v['type'] == 'sample'}
         rawind = {(d, s): anat_index(s) for (d, s), v in srs.items()}
         sindex = proc_anat(rawind)
         values_qv = [
             # value, object, desc_inst, desc_quant, inst, value_blob
-            (v,
-             this_dataset_updated_uuid,
-             i.luid[srs[(d, s)]['desc_inst']],
-             qd,
-             luinst[d.uuid, s],
-             v,)
+            (
+                v,
+                this_dataset_updated_uuid,
+                i.luid[srs[(d, s)]['desc_inst']],
+                qd,
+                luinst[d.uuid, s],
+                v,
+            )
             for (d, s), (inst, minp, maxp) in sindex.items()
             for v, qd in ((inst, i.qd_nai), (minp, i.qd_nain), (maxp, i.qd_naix))
         ]
@@ -1340,19 +1381,29 @@ def ext_values(exts, ext_contents=None, dataset_metadata=None, process_record=No
             'id_sub': k[-1],
             'id_sam': k[-2],  # TODO backfill
         }
-        for k in sorted(set((e['dataset'], e['site'], e['sample'], e['subject']) for e in exts if e['site'] is not None))
+        for k in sorted(
+            set((e['dataset'], e['site'], e['sample'], e['subject']) for e in exts if e['site'] is not None)
+        )
     }
 
     if dataset_metadata:
         # add metadata only
-        asdf = ((subjects, 'subjects', 'subject_id'),
-                (samples, 'samples', 'sample_id'),
-                (sites, 'sites', 'site_id'),)
+        asdf = (
+            (subjects, 'subjects', 'subject_id'),
+            (samples, 'samples', 'sample_id'),
+            (sites, 'sites', 'site_id'),
+        )
         dm = dataset_metadata
         did = RemoteId(dm['id'])
-        sample_subject = {s['sample_id']: s['subject_id'] for s in dm['samples']}  # FIXME XXX bad assumption for multi-parent
-        site_subject = {s['site_id']: (s['specimen_id'] if s['specimen_id'].startswith('sub-') else sample_subject[s['specimen_id']])
-                        for s in dm['sites']}
+        sample_subject = {
+            s['sample_id']: s['subject_id'] for s in dm['samples']
+        }  # FIXME XXX bad assumption for multi-parent
+        site_subject = {
+            s['site_id']: (
+                s['specimen_id'] if s['specimen_id'].startswith('sub-') else sample_subject[s['specimen_id']]
+            )
+            for s in dm['sites']
+        }
         for d, k, ik in asdf:
             if k in dataset_metadata:
                 m = dataset_metadata[k]
@@ -1388,6 +1439,7 @@ def ext_values(exts, ext_contents=None, dataset_metadata=None, process_record=No
         values_c = []
         formals = set()
         bads = set()
+
         def add_formal(f):
             if f in formals:
                 bads.add(f)
@@ -1406,7 +1458,9 @@ def ext_values(exts, ext_contents=None, dataset_metadata=None, process_record=No
             for e in exts
             for i, record in enumerate(ext_contents[e['object']])
             if not tabular_header and i >= 0 or i >= 1
-            for id_formal, result, parent_rec, vsq, vsc in process_record(e, i, record, (ext_contents[e['object']][0]) if tabular_header else None)
+            for id_formal, result, parent_rec, vsq, vsc in process_record(
+                e, i, record, (ext_contents[e['object']][0]) if tabular_header else None
+            )
             if not add_formal(id_formal) and not add_parent(parent_rec) and not add_values(vsq, vsc)
         }
 
@@ -1546,9 +1600,11 @@ def extract_demo(dataset_uuid, source_local=True):
     if ap.is_broken_symlink():
         cp = ap.cache.local_object_cache_path
         if not cp.exists():
-            pb = {'dataset_id': dataset_id,
-                  'remote_id': RemoteId(ap.cache_id, file_id=ap.cache_file_id),
-                  'dataset_relative_path': drp,}
+            pb = {
+                'dataset_id': dataset_id,
+                'remote_id': RemoteId(ap.cache_id, file_id=ap.cache_file_id),
+                'dataset_relative_path': drp,
+            }
             cp = path_from_blob(pb)
 
         m = scipy.io.loadmat(cp)
@@ -1633,7 +1689,7 @@ def extract_demo(dataset_uuid, source_local=True):
             }
             fasc_qvs.append(
                 {
-                    #**vdd,  # FIXME desc quant domain issues here, technically the fascicles are data signatures
+                    # **vdd,  # FIXME desc quant domain issues here, technically the fascicles are data signatures
                     # also as predicted this will happen, the issue is that we would have to traverse the instance
                     # partonomy when returning anything, probably would have to be an option which is "match instance children"
                     # or something like that, except that that can expand to millions of values ... and technically
@@ -1792,6 +1848,7 @@ def path_from_blob(pb):
     # check to see if we have a local copy of the file
     from sparcur.config import auth
     from sparcur.paths import Path
+
     viewer_default = pathlib.Path('~/files/sparc-datasets').expanduser().resolve()
     sparcron_default = pathlib.Path('~/files/sparc-datasets-test').expanduser().resolve()
     config_value = auth.get_path('data-path')
@@ -1838,6 +1895,7 @@ def path_from_blob(pb):
 
     if not dofetch:
         from sparcur.simple.retrieve import main as retrieve
+
         p = Path(bases[0])
         if not p.exists():
             p.mkdir(parents=True)
@@ -1881,6 +1939,7 @@ def extract_fasc_fib(dataset_uuid, source_local=True):
 
     ir = fromJson(blob)
     updated_transitive = max([i['timestamp_updated'] for i in ir['data'][1:]])  # 1: to skip the dataset object itself
+
     def match_fasc(pb):
         return pb['basename'].endswith('fascicles.csv')
 
@@ -1899,8 +1958,9 @@ def extract_fasc_fib(dataset_uuid, source_local=True):
     faps = [path_from_blob(p) for p in fascs]
     fips = [path_from_blob(p) for p in fibs]
 
-    #from neurondm.models.composer import get_csv_sheet
+    # from neurondm.models.composer import get_csv_sheet
     import csv
+
     def get_csv_sheet(path):
         with open(path, 'rt') as f:
             _rows = list(csv.reader(f))
@@ -1913,9 +1973,9 @@ def extract_fasc_fib(dataset_uuid, source_local=True):
     # headers
     fah = set([tuple(f[0]) for f in facs])
     fih = set([tuple(f[0]) for f in fics])  # looks like the order was different every time somehow !?
-    #_wat = set([frozenset(f[0]) for f in fics])  # ok that's a bit better?
-    #_sfih = set(h for f in fics for h in set(f[0]))
-    #[('tabular-header', f) for f in sorted(_sfih)]
+    # _wat = set([frozenset(f[0]) for f in fics])  # ok that's a bit better?
+    # _sfih = set(h for f in fics for h in set(f[0]))
+    # [('tabular-header', f) for f in sorted(_sfih)]
 
     # ids
     faids = set(pb['remote_id'] for pb in fascs)
@@ -1928,10 +1988,13 @@ def extract_fasc_fib(dataset_uuid, source_local=True):
 
     exts = [ext_pmeta(j, ir_dataset, pps) for j in fascs + fibs]
     # FIXME ah the joys of metadata only specimens and my dumb hack to use just the paths
-    ext_contents = {f['remote_id']: c for f, c in zip(fascs + fibs, facs + fics)}  # FIXME sort out fasc-n/*fibers.csv vs fibers.csv
+    ext_contents = {
+        f['remote_id']: c for f, c in zip(fascs + fibs, facs + fics)
+    }  # FIXME sort out fasc-n/*fibers.csv vs fibers.csv
 
     debug_done = set()
-    fasc_fib_id = defaultdict(lambda:0)
+    fasc_fib_id = defaultdict(lambda: 0)
+
     def process_record(e, idx, record, header):
         # idx is the record index and it is passed because often the index is implicitly
         # the only way we would be able to uniquely identify and instance (up to an isomorphism)
@@ -1943,12 +2006,14 @@ def extract_fasc_fib(dataset_uuid, source_local=True):
             # instance
             idx_inst = header.index('fascicle')
             id_inst = record[idx_inst]
-            fbase = e['sample'] if e['site'] is None else e['site']  # FIXME overlapping sites -> duplicate fasc issues ...
+            fbase = (
+                e['sample'] if e['site'] is None else e['site']
+            )  # FIXME overlapping sites -> duplicate fasc issues ...
             id_formal = 'fasc-' + fbase + '-' + str(id_inst)
             di = 'fascicle-cross-section'
 
             # parent
-            #parent_rec = e['dataset'], id_formal, e['sample']  # FIXME technically correct but skips sites
+            # parent_rec = e['dataset'], id_formal, e['sample']  # FIXME technically correct but skips sites
             parent_rec = e['dataset'], id_formal, fbase  # go via site for sanity
 
             # values q
@@ -1960,11 +2025,9 @@ def extract_fasc_fib(dataset_uuid, source_local=True):
                 'longest_diameter',
                 'shortest_diameter',
                 'eff_diam',
-
                 'c_estimate_nav',
                 'c_estimate_nf',
                 'nfibers_all',
-
                 'n_a_alpha',
                 'n_a_beta',
                 'n_a_gamma',
@@ -1974,7 +2037,6 @@ def extract_fasc_fib(dataset_uuid, source_local=True):
                 'n_nav',
                 'n_chat',
                 'n_myelinated',
-
                 'area_a_alpha',
                 'area_a_beta',
                 'area_a_gamma',
@@ -1984,11 +2046,12 @@ def extract_fasc_fib(dataset_uuid, source_local=True):
                 'area_nav',
                 'area_chat',
                 'area_myelinated',
-
-                         )  # XXX keep in sync with voqd for now
+            )  # XXX keep in sync with voqd for now
             vsq = []
             for address in addresses:
-                idx_v = header.index(address)  # technically correct but if schema is same we don't have to recompute ... ah well
+                idx_v = header.index(
+                    address
+                )  # technically correct but if schema is same we don't have to recompute ... ah well
                 value = record[idx_v]
                 desc_quant = address  # FIXME yeah, exactly why we want voqd, but maybe we fill it later
                 # FIXME also int/float conversion should be coming form desc_quant ...
@@ -2010,7 +2073,7 @@ def extract_fasc_fib(dataset_uuid, source_local=True):
                 'desc_inst': di,
                 'id_sub': e['subject'],
                 'id_sam': e['sample'],
-             }, parent_rec, vsq, vsc
+            }, parent_rec, vsq, vsc
 
         elif e['object'] in fiids:
             if False:
@@ -2052,11 +2115,12 @@ def extract_fasc_fib(dataset_uuid, source_local=True):
                 'longest_diameter',
                 'shortest_diameter',
                 'eff_fib_diam',
-
             )  # XXX keep in sync with voqd for now
             vsq = []
             for address in addresses:
-                idx_v = header.index(address)  # technically correct but if schema is same we don't have to recompute ... ah well
+                idx_v = header.index(
+                    address
+                )  # technically correct but if schema is same we don't have to recompute ... ah well
                 value = record[idx_v]
                 desc_quant = address  # FIXME yeah, exactly why we want voqd, but maybe we fill it later
                 # FIXME also int/float conversion should be coming form desc_quant ...
@@ -2078,14 +2142,17 @@ def extract_fasc_fib(dataset_uuid, source_local=True):
                 'desc_inst': di,
                 'id_sub': e['subject'],
                 'id_sam': e['sample'],
-             }, parent_rec, vsq, vsc
+            }, parent_rec, vsq, vsc
 
-    (instances, _parents, objects, values_objects, values_dataset_object, values_q, values_c
-     ) = ext_values(exts, ext_contents, ir_dataset, process_record)
+    (instances, _parents, objects, values_objects, values_dataset_object, values_q, values_c) = ext_values(
+        exts, ext_contents, ir_dataset, process_record
+    )
 
-    parents_sam = [(dataset_id, s['sample_id'], p)
-                   for s in ir_dataset['samples']
-                   for p in (s['was_derived_from'] if 'was_derived_from' in s else (s['subject_id'],))]
+    parents_sam = [
+        (dataset_id, s['sample_id'], p)
+        for s in ir_dataset['samples']
+        for p in (s['was_derived_from'] if 'was_derived_from' in s else (s['subject_id'],))
+    ]
 
     # FIXME technically sites are orthognoal to the instance hierarchy ... I'm including them
     # but the fasc and fib level tends to go to sample directly and I think that is actually reasonable
@@ -2093,22 +2160,23 @@ def extract_fasc_fib(dataset_uuid, source_local=True):
 
     _uns_parents = parents_sam + parents_site + _parents
     parents = sort_parents(set(_uns_parents))
-    #check_parents_instances(instances, parents)  # figure out the issue was bad ordering of inserts
+    # check_parents_instances(instances, parents)  # figure out the issue was bad ordering of inserts
 
     if len(_uns_parents) != len(parents):
         qq = [(a, b) for a, b in Counter(_uns_parents).most_common() if b > 1]
-        #usually ok
+        # usually ok
         log.warning(f'duplicate parents {qq}!')
 
     def make_values_instances(i):
         values_instances = [
-            (d.uuid,
-             id_formal,
-             inst['type'],
-             i.luid[inst['desc_inst']],
-             inst['id_sub'] if 'id_sub' in inst else None,
-             inst['id_sam'] if 'id_sam' in inst else None,
-             )
+            (
+                d.uuid,
+                id_formal,
+                inst['type'],
+                i.luid[inst['desc_inst']],
+                inst['id_sub'] if 'id_sub' in inst else None,
+                inst['id_sam'] if 'id_sam' in inst else None,
+            )
             for (d, id_formal), inst in instances.items()
         ]
         return values_instances
@@ -2130,12 +2198,13 @@ def extract_fasc_fib(dataset_uuid, source_local=True):
         return void
 
     inv_vocd = {}
+
     def make_vocd(this_dataset_updated_uuid, i):
         vocd = []
         for obj_uuid in fiu:
             vocd.append((obj_uuid, i.cd_axon, i.addr_myelinated))
 
-        inv = {(i._q._inv['addr', a]['fadd'], u in fiu):(q, a) for u, q, a in vocd}
+        inv = {(i._q._inv['addr', a]['fadd'], u in fiu): (q, a) for u, q, a in vocd}
         inv_vocd.update(inv)
         return vocd
 
@@ -2167,60 +2236,69 @@ def extract_fasc_fib(dataset_uuid, source_local=True):
         ('myelinated fiber area in fascicle cross section um2', 'area_myelinated'),
     )
     inv_voqd = {}
+
     def make_voqd(this_dataset_updated_uuid, i):
         voqd = []
         for obj_uuid in fau:
             for qd, a in voqd_mapping:
-                iqd, ia = i.reg_qd(qd), i.reg_addr(a)  # FIXME caching is nice but we should be able to reg once and not have to hit the cache at all
+                iqd, ia = i.reg_qd(qd), i.reg_addr(
+                    a
+                )  # FIXME caching is nice but we should be able to reg once and not have to hit the cache at all
                 voqd.append((obj_uuid, iqd, ia))
 
         # FIXME likely need to deal with cases where there are missing columns :/
         for obj_uuid in fiu:
-            voqd.extend((
-                (obj_uuid, i.qd_fiber_cs_area_um2, i.addr_fiber_area),
-                (obj_uuid, i.qd_fiber_cs_diameter_um_max, i.addr_long_diam),
-                (obj_uuid, i.qd_fiber_cs_diameter_um_min, i.addr_short_diam),
-                (obj_uuid, i.qd_fiber_cs_diameter_um, i.addr_eff_fib_diam),
-            ))
+            voqd.extend(
+                (
+                    (obj_uuid, i.qd_fiber_cs_area_um2, i.addr_fiber_area),
+                    (obj_uuid, i.qd_fiber_cs_diameter_um_max, i.addr_long_diam),
+                    (obj_uuid, i.qd_fiber_cs_diameter_um_min, i.addr_short_diam),
+                    (obj_uuid, i.qd_fiber_cs_diameter_um, i.addr_eff_fib_diam),
+                )
+            )
 
-        inv = {(i._q._inv['addr', a]['fadd'], u in fiu):(q, a) for u, q, a in voqd}
+        inv = {(i._q._inv['addr', a]['fadd'], u in fiu): (q, a) for u, q, a in voqd}
         inv_voqd.update(inv)
         return voqd
 
     def make_values_cat(this_dataset_updated_uuid, i, luinst):
         values_cv = []
-        #for obj_uuid in fau:  # not really any for this one
-        #for obj_uuid in fau:
+        # for obj_uuid in fau:  # not really any for this one
+        # for obj_uuid in fau:
         for value, o_uuid, di, addr, inst_ident in values_c:
             desc_cat, _ = inv_vocd[addr, o_uuid in fiu]
             desc_inst = i.luid[di]
             values_cv.append(
-                (None,
-                 i.luct[value],
-                 o_uuid,
-                 desc_inst,
-                 desc_cat,
-                 luinst[inst_ident],
-                 )
+                (
+                    None,
+                    i.luct[value],
+                    o_uuid,
+                    desc_inst,
+                    desc_cat,
+                    luinst[inst_ident],
+                )
             )
 
         return values_cv
 
     def make_values_quant(this_dataset_updated_uuid, i, luinst):
         values_qv = []
-        #breakpoint()
-        #hack_di = {'fascicle-cross-section': i.id_fascicle_cross_section}
-        #hack_addr = {'area': i.addr_area}  # FIXME so much duplication oof
+        # breakpoint()
+        # hack_di = {'fascicle-cross-section': i.id_fascicle_cross_section}
+        # hack_addr = {'area': i.addr_area}  # FIXME so much duplication oof
         for value, o_uuid, di, addr, inst_ident, value_blob in values_q:
             desc_quant, _ = inv_voqd[addr, o_uuid in fiu]
             desc_inst = i.luid[di]  # i._q._inv['id', di]
             values_qv.append(
-                (value,
-                 o_uuid,
-                 desc_inst,
-                 desc_quant,
-                 luinst[inst_ident],
-                 value_blob,))
+                (
+                    value,
+                    o_uuid,
+                    desc_inst,
+                    desc_quant,
+                    luinst[inst_ident],
+                    value_blob,
+                )
+            )
         # (value, object, desc_inst, desc_quant, instance, value_blob)
         return values_qv
 
@@ -2302,16 +2380,14 @@ def ingest_demo_jp2(session, source_local=True, do_insert=True, commit=False, de
 
 
 def ingest_fasc_fib(session, source_local=True, do_insert=True, commit=False, dev=False):
-    #dataset_uuid = 'ec6ad74e-7b59-409b-8fc7-a304319b6faf'  # f003
+    # dataset_uuid = 'ec6ad74e-7b59-409b-8fc7-a304319b6faf'  # f003
     dataset_uuid = '2a3d01c0-39d3-464a-8746-54c9d67ebe0f'  # f006
     ingest(dataset_uuid, extract_fasc_fib, session, commit=commit, dev=dev)
 
 
 def ingest_reva_ft_all(session, source_local=False, do_insert=True, batch=False, commit=False, dev=False):
 
-    dataset_uuids = (
-        '2a3d01c0-39d3-464a-8746-54c9d67ebe0f',  # f006
-    )
+    dataset_uuids = ('2a3d01c0-39d3-464a-8746-54c9d67ebe0f',)  # f006
     (
         'aa43eda8-b29a-4c25-9840-ecbd57598afc',  # f001
         # the rest have uuid1 issues :/ all in the undefined folder it seems, might be able to fix with a reupload
@@ -2363,11 +2439,12 @@ def ingest_entity_metadata_all(session, source_local=False, do_insert=True, batc
             url = f'https://cassava.ucsd.edu/sparc/preview/archive/summary/LATEST/snapshot/{_uuid}/curation-export.json'
             _dblobs.append(requests.get(url).json())
 
-    dblobs = [d for d in _dblobs
-              if
-              [u for u in _uuids if u in d['id']]  # vagus scaffolds
-              #'- f0' in d['meta']['folder_name'] or 'Scaffold' in d['meta']['folder_name']
-              ]
+    dblobs = [
+        d
+        for d in _dblobs
+        if [u for u in _uuids if u in d['id']]  # vagus scaffolds
+        #'- f0' in d['meta']['folder_name'] or 'Scaffold' in d['meta']['folder_name']
+    ]
     dindex = {}
     dids = []
     for d in dblobs:
@@ -2382,6 +2459,7 @@ def ingest_entity_metadata_all(session, source_local=False, do_insert=True, batc
     sites = [(RemoteId(d['id']), s) for d in dblobs if 'sites' in d for s in d['sites']]
 
     iicache = pathlib.Path('~/.cache/quantdb/identifier-index/').expanduser()
+
     @idlib.cache.cache(iicache, ser='pickle', clear_cache=False, create=True)
     def get_ii():
         iout = big_did, *indexes, doi_did, doi_pat = identifier_indexes()
@@ -2402,7 +2480,9 @@ def ingest_entity_metadata_all(session, source_local=False, do_insert=True, batc
     rsession = requests.Session()
     try:
         for did in dids:
-            url = f'https://cassava.ucsd.edu/sparc/preview/archive/summary/LATEST/snapshot/{did.uuid}/path-metadata.json'
+            url = (
+                f'https://cassava.ucsd.edu/sparc/preview/archive/summary/LATEST/snapshot/{did.uuid}/path-metadata.json'
+            )
             resp = rsession.get(url)
             j = resp.json()
             updated_transitive = ''
@@ -2439,6 +2519,7 @@ def ingest_entity_metadata_all(session, source_local=False, do_insert=True, batc
         'distance_from_nodose_cm': 'distance cm',  # TODO
     }
     uvals = set()
+
     def process_record(did, record):
         # TODO we don't retain the original tabular header for these, see if it is ok
         if did.uuid == uuidvs:
@@ -2449,14 +2530,14 @@ def ingest_entity_metadata_all(session, source_local=False, do_insert=True, batc
                     yield address, desc_quant, value
         else:
             pass
-            #raise NotImplementedError('TODO')
+            # raise NotImplementedError('TODO')
         uvals.update(record)
 
     def extract_entities(dataset_uuid, source_local=False):
         # FIXME merge this with ext_values impl?
         did = RemoteId(dataset_uuid, type='dataset')
         updated_transitive = uts[did]
-        #dair = dindex[did]
+        # dair = dindex[did]
         parents = []
         objects = {did.uuid: {'id_type': did.type}}
         dataset_objects = []
@@ -2471,8 +2552,13 @@ def ingest_entity_metadata_all(session, source_local=False, do_insert=True, batc
         o_samples = {}
         o_sites = {}
         sample_subject = {s['sample_id']: s['subject_id'] for _, s in samples if _ == did}
-        site_subject = {s['site_id']: (s['specimen_id'] if s['specimen_id'].startswith('sub-') else sample_subject[s['specimen_id']])
-                        for _, s in sites if _ == did}
+        site_subject = {
+            s['site_id']: (
+                s['specimen_id'] if s['specimen_id'].startswith('sub-') else sample_subject[s['specimen_id']]
+            )
+            for _, s in sites
+            if _ == did
+        }
         # TODO need also in dataset mapping here to insert
         for _, ent in chain(subjects, samples, sites):
             if _ != did:
@@ -2485,8 +2571,12 @@ def ingest_entity_metadata_all(session, source_local=False, do_insert=True, batc
                 et = 'sample'
                 eid = ent[k]
                 o_samples[did, eid] = rec
-                p = ent['was_derived_from'] if 'was_derived_from' in ent else ent['subject_id']  # FIXME wdf needs to be always required
-                if isinstance(p, list):  # FIXME yeah this is real, and we likely need to convert all parents cases to be a list
+                p = (
+                    ent['was_derived_from'] if 'was_derived_from' in ent else ent['subject_id']
+                )  # FIXME wdf needs to be always required
+                if isinstance(
+                    p, list
+                ):  # FIXME yeah this is real, and we likely need to convert all parents cases to be a list
                     for _p in p:
                         parents.append((did, eid, _p))
                 else:
@@ -2561,18 +2651,19 @@ def ingest_entity_metadata_all(session, source_local=False, do_insert=True, batc
                 values_q.append(qrow)
 
         instances = {**o_subjects, **o_samples, **o_sites}
-        #instances = {((d if type(d) == str else d.uuid), idf): v for (d, idf), v in _instances.items()}
+        # instances = {((d if type(d) == str else d.uuid), idf): v for (d, idf), v in _instances.items()}
         values_objects = values_objects_from_objects(objects)
         values_dataset_object = dataset_objects
 
         def make_values_instances(i):
             values_instances = [
-                (d.uuid,
-                 id_formal,
-                 inst['type'],
-                 i.luid[inst['desc_inst']],
-                 inst['id_sub'] if 'id_sub' in inst else None,
-                 inst['id_sam'] if 'id_sam' in inst else None,
+                (
+                    d.uuid,
+                    id_formal,
+                    inst['type'],
+                    i.luid[inst['desc_inst']],
+                    inst['id_sub'] if 'id_sub' in inst else None,
+                    inst['id_sam'] if 'id_sam' in inst else None,
                 )
                 for (d, id_formal), inst in instances.items()
             ]
@@ -2603,6 +2694,7 @@ def ingest_entity_metadata_all(session, source_local=False, do_insert=True, batc
             return vocd
 
         inv_voqd = {}
+
         def make_voqd(this_dataset_updated_uuid, i):
             # this is effectively where we specify the schema
             voqd = []
@@ -2611,7 +2703,9 @@ def ingest_entity_metadata_all(session, source_local=False, do_insert=True, batc
                     iqd, ia = i.reg_qd(qd), i.reg_addr(a)
                     voqd.append((obj_uuid, iqd, ia))
 
-            inv = {(i._q._inv['addr', a]['fadd'], True):(q, a) for u, q, a in voqd}  # FIXME u in objs_this_dataset probably?
+            inv = {
+                (i._q._inv['addr', a]['fadd'], True): (q, a) for u, q, a in voqd
+            }  # FIXME u in objs_this_dataset probably?
             inv_voqd.update(inv)
             return voqd
 
@@ -2628,12 +2722,15 @@ def ingest_entity_metadata_all(session, source_local=False, do_insert=True, batc
                 desc_quant, _ = inv_voqd[addr, True]
                 desc_inst = i.luid[di]  # i._q._inv['id', di]
                 values_qv.append(
-                    (value,
-                     o_uuid,
-                     desc_inst,
-                     desc_quant,
-                     luinst[inst_ident],
-                     value_blob,))
+                    (
+                        value,
+                        o_uuid,
+                        desc_inst,
+                        desc_quant,
+                        luinst[inst_ident],
+                        value_blob,
+                    )
+                )
 
             return values_qv
 
@@ -2665,10 +2762,11 @@ def ingest_entity_metadata_all(session, source_local=False, do_insert=True, batc
         ingest(did.uuid, extract_entities, session, source_local=source_local, commit=commit, dev=dev)
 
 
-def main(source_local=False, commit=False, echo=False):
+def main(source_local=False, commit=False, echo=False, test=True):
     from quantdb.config import auth
 
-    dbkwargs = {k: auth.get(f'db-{k}') for k in ('user', 'host', 'port', 'database')}  # TODO integrate with cli options
+    prefix = 'test-db' if test else 'db'
+    dbkwargs = {k: auth.get(f'{prefix}-{k}') for k in ('user', 'host', 'port', 'database')}
     dbkwargs['dbuser'] = dbkwargs.pop('user')
     engine = create_engine(dbUri(**dbkwargs), query_cache_size=0)
     log.info(engine)
@@ -2733,4 +2831,12 @@ def main(source_local=False, commit=False, echo=False):
 
 
 if __name__ == '__main__':
-    main()
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Run quantdb ingestion pipeline')
+    parser.add_argument('--prod', action='store_true', help='Use production database (default: test)')
+    parser.add_argument('--commit', action='store_true', help='Commit changes to database')
+    parser.add_argument('--echo', action='store_true', help='Echo SQL statements')
+    parser.add_argument('--source-local', action='store_true', help='Use local source files')
+    args = parser.parse_args()
+    main(test=not args.prod, commit=args.commit, echo=args.echo, source_local=args.source_local)

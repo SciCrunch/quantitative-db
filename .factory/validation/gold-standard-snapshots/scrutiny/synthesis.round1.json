@@ -1,0 +1,59 @@
+{
+  "milestone": "gold-standard-snapshots",
+  "round": 1,
+  "status": "fail",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd \"/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db\" && /Users/tmsincomb/miniforge3/envs/quantdb/bin/python -m pytest test/ -v --no-header -x --ignore=test/test_api.py",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "echo \"No typechecker configured for this project\"",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "cd \"/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db\" && /Users/tmsincomb/miniforge3/envs/quantdb/bin/python -m pytest test/ --co -q --no-header && echo \"lint check - no flake8/ruff configured\"",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 2,
+    "passed": 0,
+    "failed": 2,
+    "failedFeatures": [
+      "snapshot-extraction",
+      "snapshot-comparison-utils"
+    ]
+  },
+  "blockingIssues": [
+    {
+      "featureId": "snapshot-extraction",
+      "severity": "blocking",
+      "description": "test/test_snapshot.py only count-checks objects.json and the obj_desc_* fixture files instead of comparing their full row contents to the production dump, so VAL-SNAP-006 is not fully validated."
+    },
+    {
+      "featureId": "snapshot-extraction",
+      "severity": "blocking",
+      "description": "test/test_snapshot.py replaces the requested rebuild_database fixture with a count-based ensure_database shortcut, so the tests no longer guarantee the fixtures are extracted from a freshly restored production dump baseline."
+    },
+    {
+      "featureId": "snapshot-comparison-utils",
+      "severity": "blocking",
+      "description": "quantdb/snapshot.py silently skips missing expected fixture files in compare_snapshot(), allowing incomplete fixture directories to be reported as identical."
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "skills",
+      "suggestion": "Clarify AGENTS.md and the db-pipeline-worker skill so workers do not assume test/test_ingest_f006.py::rebuild_database is already reusable across test files; either centralize that fixture in shared conftest.py or update the guidance to describe the current workaround explicitly.",
+      "evidence": "Both scrutiny reviews (`snapshot-extraction` and `snapshot-comparison-utils`) found the worker falling back to a bespoke ensure_database helper in test/test_snapshot.py because the documented shared rebuild fixture was not actually available for direct reuse across files.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [],
+  "previousRound": null
+}

@@ -1,3 +1,9 @@
+# Mac OS
+.DS_Store
+
+# IDEs
+.vscode/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -174,3 +180,15 @@ cython_debug/
 .pypirc
 
 README.pdf
+
+# Test env 
+resources/*.dump
+docs/permissions.md
+docs/local-db-test-parity.md
+objectives.txt
+.factory/research/
+
+# AI-generated docs and scratch files
+docs/*.md
+prompt.md
+sqlbase-plan-attempt-1.txt

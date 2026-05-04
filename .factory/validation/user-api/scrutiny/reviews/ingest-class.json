@@ -1,0 +1,45 @@
+{
+  "featureId": "ingest-class",
+  "reviewedAt": "2026-03-24T21:44:42Z",
+  "commitId": "9bd7f66",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The feature adds the requested `Ingest` surface and the new tests cover the happy-path row/batch/get flows, but the implementation does not fully enforce lookup-table protection. `resolve_fk_value()` blocks auto-creation only when a lookup table is reached through an FK, while `deep_upsert()` still unconditionally `get_or_create()`s the target table itself. That means direct calls such as `ing.row(session, 'units', label='...')` can still create new lookup rows, which contradicts the feature contract's requirement that only `is_lookup=False` tables allow auto-creation. I also found two test gaps: the session-lifecycle tests do not exercise a write, and the error-message test does not verify the required constraint/trigger details.",
+    "issues": [
+      {
+        "file": "quantdb/generic_ingest.py",
+        "line": 1066,
+        "severity": "blocking",
+        "description": "Lookup-table protection is incomplete. `deep_upsert()` always calls `get_or_create()` for the target table (`generic_ingest.py:1066-1071`) even when that table is classified as `is_lookup=True`, so `Ingest.row()` can still create new rows directly in protected lookup tables such as `units`, `aspects`, or `descriptors_inst`. The only protection added in this feature lives inside `resolve_fk_value()` (`generic_ingest.py:645-703`), which covers referenced lookup rows but not top-level inserts. That violates the feature/validation requirement that only non-lookup tables permit auto-creation."
+      },
+      {
+        "file": "test/test_deep_upsert.py",
+        "line": 1293,
+        "severity": "non_blocking",
+        "description": "The VAL-API-006 tests do not actually validate commit/rollback of writes. `test_session_commits_on_clean_exit()` and `test_session_rolls_back_on_exception()` only perform `ingest.get(..., label='um')` lookups (`test/test_deep_upsert.py:1305-1316` and `1331-1342`), so the suite never proves that `Ingest.session()` persists new rows on success or discards pending writes on failure as the validation contract requires."
+      },
+      {
+        "file": "test/test_deep_upsert.py",
+        "line": 1268,
+        "severity": "non_blocking",
+        "description": "The VAL-API-005 test is too weak for the stated requirement. It catches either `IngestError` or any other exception and then only asserts that the message mentions `values_quant` or that the exception is an `IngestError` (`test/test_deep_upsert.py:1268-1282`). It does not verify that the raised message includes the constraint/trigger name and an explanatory description, which is the core behavior promised by the feature."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The skill procedure and mission guidance disagree on the external-URL grep step. `python-library-worker/SKILL.md` tells workers to run `rg 'amazonaws|cassava\\.ucsd' test/`, but `AGENTS.md` says to scope that check only to new test files because `test/test_ingest_f006.py` intentionally contains cached cassava URLs. The worker followed the AGENTS guidance and narrowed the grep in the handoff, so the skill should be updated to match repository reality.",
+      "evidence": "`/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/.factory/skills/python-library-worker/SKILL.md` Step 5 says `rg 'amazonaws|cassava\\.ucsd' test/`; `/Users/tmsincomb/.factory/missions/c788d974-b8aa-476d-b915-9faa04b68ace/AGENTS.md` says the grep must be scoped to new test files only; the handoff for session `1a3d2415-e434-458f-8c4b-945f8be36956` records `rg 'amazonaws|cassava\\.ucsd' test/test_deep_upsert.py test/test_generic_ingest.py`."
+    },
+    {
+      "area": "skills",
+      "observation": "The handoff's skill-compliance report is inaccurate for this run. The skill requires writing failing tests before implementation, but the transcript skeleton shows the worker editing `quantdb/generic_ingest.py` before touching `test/test_deep_upsert.py` and without a red test run first, while `handoff.skillFeedback.followedProcedure` is still marked `true` with no deviations.",
+      "evidence": "In `worker-transcripts.jsonl` for session `1a3d2415-e434-458f-8c4b-945f8be36956`, the first `Edit` operations modify `quantdb/generic_ingest.py`; only later does the worker edit `test/test_deep_upsert.py` and run the updated test file. The corresponding handoff JSON records `\"followedProcedure\": true` and an empty `deviations` array."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Fail: the new `Ingest` API is mostly in place, but direct `Ingest.row()` calls can still auto-create rows in protected lookup tables because lookup-table protection is enforced only during FK resolution, not for the target table itself. I also noted non-blocking validation gaps in the session-lifecycle and error-message tests, plus two skill/shared-state inconsistencies around grep guidance and procedure reporting."
+}

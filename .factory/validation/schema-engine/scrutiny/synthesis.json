@@ -1,0 +1,51 @@
+{
+  "milestone": "schema-engine",
+  "round": 2,
+  "status": "pass",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd \"/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db\" && /Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pytest test/ -v --no-header -x --ignore=test/test_api.py",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "echo \"No typechecker configured for this project\"",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "cd \"/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db\" && /Users/tmsincomb/miniforge3/envs/quantdb/bin/python3 -m pytest test/ --co -q --no-header",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "appliedUpdates": [
+    {
+      "target": "library",
+      "description": "Added the explicit localhost `create_engine(...)` + `reflect_models(engine=engine)` workaround to `.factory/library/environment.md` so workers do not rediscover the AWS override issue.",
+      "sourceFeature": "schema-graph"
+    }
+  ],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "python-library-worker",
+      "suggestion": "Update the verification step to use the repo's configured validator command from `.factory/services.yaml`/`AGENTS.md` and only import symbols that are expected for the assigned feature instead of always requiring `SchemaGraph`, `Ingest`, and `deep_upsert`.",
+      "evidence": "The schema-graph review flagged `.factory/skills/python-library-worker/SKILL.md` as stale relative to this repo's validator setup, and the schema-graph worker handoff independently reported that the import check assumed later-milestone symbols.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "The `python-library-worker` procedure appears heavier than what narrowly scoped fix features actually need, or its `followedProcedure` reporting is too permissive.",
+      "reason": "ambiguous"
+    }
+  ],
+  "previousRound": ".factory/validation/schema-engine/scrutiny/synthesis.round1.json"
+}

@@ -1,0 +1,60 @@
+{
+  "milestone": "ingest-test",
+  "round": 1,
+  "status": "fail",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "\"/Users/tmsincomb/miniforge3/envs/quantdb/bin/python\" -m pytest \"/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/test/test_schema_microct.py\" \"/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/test/test_extract_microct.py\" \"/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/test/test_ingest_microct.py\" -v",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "\"/Users/tmsincomb/miniforge3/envs/quantdb/bin/python\" -c \"import pathlib,tomllib; data=tomllib.loads(pathlib.Path('/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/pyproject.toml').read_text()); tool=data.get('tool',{}); configured=[name for name in ('mypy','pyright','pytype','basedpyright') if name in tool]; print('NO_TYPECHECKER_CONFIGURED' if not configured else 'TYPECHECKERS=' + ','.join(configured))\"",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "cd \"/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db\" && \"/Users/tmsincomb/miniforge3/envs/quantdb/bin/python\" -m pre_commit run isort --files \"quantdb/ingest_microct.py\" \"test/test_ingest_microct.py\" && \"/Users/tmsincomb/miniforge3/envs/quantdb/bin/python\" -m pre_commit run blue --files \"quantdb/ingest_microct.py\" \"test/test_ingest_microct.py\"",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "failedFeatures": [
+      "ingest-pipeline-and-tests"
+    ]
+  },
+  "blockingIssues": [
+    {
+      "featureId": "ingest-pipeline-and-tests",
+      "severity": "blocking",
+      "description": "The ingest milestone contract required an end-to-end `schema SQL -> extract from cassava -> ingest -> verify -> delete -> re-ingest -> verify` flow, but `test/test_ingest_microct.py` seeds synthetic fixture dicts instead of exercising `extract_microct.py`, which leaves `VAL-CROSS-002` unproven and masks real interface mismatches between `extract_microct.py` output and `ingest_microct.py` input."
+    }
+  ],
+  "appliedUpdates": [
+    {
+      "target": "library",
+      "description": "Documented in `.factory/library/architecture.md` that `quantdb.values_inst.id_sub` is a required `NOT NULL` column for every inserted instance row.",
+      "sourceFeature": "ingest-pipeline-and-tests"
+    }
+  ],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "skills",
+      "suggestion": "Update `db-pipeline-worker` guidance to warn that public cassava access exposes metadata JSON but not the underlying CSV/GraphML file bodies needed for live MicroCT ingest tests, so workers should plan authenticated access or explicitly renegotiate end-to-end test expectations before substituting synthetic fixtures.",
+      "evidence": "The `ingest-pipeline-and-tests` handoff documents a deviation to synthetic data because the needed file bodies were unavailable through public cassava, and the scrutiny review found that this deviation left `VAL-CROSS-002` untested and hid extractor→ingester schema mismatches.",
+      "isSystemic": false
+    },
+    {
+      "target": "services.yaml",
+      "suggestion": "Reconcile the shared lint guidance: either replace the broken flake8-based `lint` command with the supported formatter/pre-commit checks or update the mission guidance so `.factory/services.yaml` and `AGENTS.md` no longer contradict each other.",
+      "evidence": "During this scrutiny run the configured flake8 lint command failed with `AttributeError: 'EntryPoints' object has no attribute 'get'`, matching the existing `AGENTS.md` note that flake8 is currently incompatible and should be skipped.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [],
+  "previousRound": null
+}

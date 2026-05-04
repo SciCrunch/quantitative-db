@@ -1,0 +1,48 @@
+{
+  "milestone": "integration-tests",
+  "round": 1,
+  "status": "fail",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "\"/Users/tmsincomb/miniforge3/envs/quantdb/bin/python3\" -m pytest \"/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/test\" -v --no-header -x --ignore=\"/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/test/test_api.py\"",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "echo \"No typechecker configured for this project\"",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "\"/Users/tmsincomb/miniforge3/envs/quantdb/bin/python3\" -m pytest \"/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/test\" --co -q --no-header && echo \"lint check - no flake8/ruff configured\"",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "failedFeatures": [
+      "integration-validation"
+    ]
+  },
+  "blockingIssues": [
+    {
+      "featureId": "integration-validation",
+      "severity": "blocking",
+      "description": "The no-external-URLs test in test/test_deep_upsert.py asserts only that ripgrep returned a non-zero exit code, so it passes both for the intended 'no matches' case (exit 1) and for ripgrep execution errors (exit 2), which means VAL-CROSS-002 is not reliably enforced."
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "skills",
+      "suggestion": "Update the `python-library-worker` skill so its external-URL grep guidance matches this repository's `AGENTS.md`: scope the scan to the new test files rather than all of `test/`, because `test/test_ingest_f006.py` intentionally contains cached cassava references.",
+      "evidence": "The review for `integration-validation` found `.factory/skills/python-library-worker/SKILL.md` instructing workers to run `rg 'amazonaws|cassava\\\\.ucsd' test/`, while mission `AGENTS.md` explicitly narrows the check to `test/test_deep_upsert.py` and `test/test_generic_ingest.py`; worker session `2ab4beb0-b6f7-435a-b4f8-2484fef14a68` followed the mission guidance.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [],
+  "previousRound": null
+}

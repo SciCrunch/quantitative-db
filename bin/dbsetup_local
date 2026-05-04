@@ -1,0 +1,177 @@
+#!/usr/bin/env bash
+# quantdb-dbsetup-local [PORT] [HOST]
+#
+# Sets up a local quantdb_test database with data from AWS RDS dumps.
+#
+# Two phases:
+#   Phase 1 (requires admin creds in ~/.pgpass):
+#     - pg_dump from AWS RDS to resources/*.dump (SKIPPED if dumps already exist)
+#
+#   Phase 2 (no admin creds needed — local trust auth only):
+#     - bin/dbsetup to create empty DB with schema/tables/triggers/functions
+#     - TRUNCATE all tables (remove inserts.sql + test.sql data)
+#     - pg_restore --data-only from the dump file
+#
+# Once the dumps exist in resources/, you can remove admin passwords from
+# ~/.pgpass and this script will still work for local rebuilds.
+
+set -e
+
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+  DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+ABS_PATH="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+
+RESOURCES="${ABS_PATH}/../resources"
+
+if [ -z "$1" ]; then
+    PORT=5432
+else
+    PORT=$1
+fi
+
+if [ -z "$2" ]; then
+    HOST=localhost
+else
+    HOST=$2
+fi
+
+AWS_HOST="sparc-nlp.cpmk2alqjf9s.us-west-2.rds.amazonaws.com"
+AWS_PORT=5432
+
+# pg_dump v16+ required for AWS RDS (PostgreSQL 16)
+PG_DUMP="/opt/homebrew/opt/postgresql@16/bin/pg_dump"
+PG_RESTORE="/opt/homebrew/opt/postgresql@16/bin/pg_restore"
+
+if [ ! -x "${PG_DUMP}" ] || [ ! -x "${PG_RESTORE}" ]; then
+    echo "ERROR: postgresql@16 tools not found. Install with: brew install postgresql@16"
+    exit 1
+fi
+
+TEST_DUMP="${RESOURCES}/quantdb_test_template.dump"
+PROD_DUMP="${RESOURCES}/quantdb_production_template.dump"
+
+########################################
+# Phase 1: Dump from AWS (if needed)
+########################################
+
+if [ ! -f "${TEST_DUMP}" ]; then
+    echo "==> Dumping AWS quantdb_test → ${TEST_DUMP}"
+    echo "    (requires quantdb-test-admin password in ~/.pgpass)"
+    "${PG_DUMP}" \
+        -U quantdb-test-admin \
+        -h "${AWS_HOST}" \
+        -p "${AWS_PORT}" \
+        -d quantdb_test \
+        --schema=quantdb \
+        --no-owner \
+        --no-privileges \
+        -Fc \
+        -f "${TEST_DUMP}"
+    echo "    Done ($(du -h "${TEST_DUMP}" | cut -f1))"
+else
+    echo "==> ${TEST_DUMP} already exists, skipping AWS dump"
+fi
+
+if [ ! -f "${PROD_DUMP}" ]; then
+    echo "==> Dumping AWS quantdb_2025_09_22 → ${PROD_DUMP}"
+    echo "    (requires quantdb-admin password in ~/.pgpass)"
+    "${PG_DUMP}" \
+        -U quantdb-admin \
+        -h "${AWS_HOST}" \
+        -p "${AWS_PORT}" \
+        -d quantdb_2025_09_22 \
+        --schema=quantdb \
+        --no-owner \
+        --no-privileges \
+        -Fc \
+        -f "${PROD_DUMP}"
+    echo "    Done ($(du -h "${PROD_DUMP}" | cut -f1))"
+else
+    echo "==> ${PROD_DUMP} already exists, skipping AWS dump"
+fi
+
+########################################
+# Phase 2: Local DB setup (no admin creds needed — local trust auth only)
+########################################
+
+SQL="${ABS_PATH}/../sql"
+
+TEST_DATABASE=$(python -c 'from quantdb.config import auth; print(auth.get("test-db-database"))')
+
+echo ""
+echo "==> Creating roles (if needed)"
+psql -U postgres -h "${HOST}" -p "${PORT}" -d postgres \
+    -f "${SQL}/postgres.sql" -v ON_ERROR_STOP=on \
+    -v test_database="${TEST_DATABASE}" -v database="${TEST_DATABASE}"
+
+echo ""
+echo "==> Creating local database ${TEST_DATABASE} (collation C)"
+psql -U postgres -h "${HOST}" -p "${PORT}" -d postgres \
+    -f "${SQL}/local_test_database.sql" -v ON_ERROR_STOP=on \
+    -v test_database="${TEST_DATABASE}"
+
+echo ""
+echo "==> Setting search_path for postgres role"
+psql -U postgres -h "${HOST}" -p "${PORT}" -d postgres -c \
+    "ALTER ROLE postgres SET search_path = quantdb, public;"
+
+echo ""
+echo "==> Creating schema, tables, triggers, functions"
+psql -U postgres -h "${HOST}" -p "${PORT}" -d "${TEST_DATABASE}" \
+    -f "${SQL}/schemas.sql" -v ON_ERROR_STOP=on
+psql -U postgres -h "${HOST}" -p "${PORT}" -d "${TEST_DATABASE}" \
+    -f "${SQL}/tables.sql" -v ON_ERROR_STOP=on
+psql -U postgres -h "${HOST}" -p "${PORT}" -d "${TEST_DATABASE}" \
+    -f "${SQL}/permissions.sql" -v ON_ERROR_STOP=on \
+    -v database="${TEST_DATABASE}" -v perm_user=quantdb-test-user
+
+echo ""
+echo "==> Dropping unique constraints that conflict with dump duplicates"
+psql -U postgres -h "${HOST}" -p "${PORT}" -d "${TEST_DATABASE}" -c "
+  ALTER TABLE quantdb.values_cat DROP CONSTRAINT IF EXISTS values_cat_object_instance_desc_cat_key;
+  ALTER TABLE quantdb.values_quant DROP CONSTRAINT IF EXISTS values_quant_object_instance_desc_quant_key;
+"
+
+echo ""
+echo "==> Restoring AWS test data from ${TEST_DUMP}"
+echo "    (using postgres with --disable-triggers to bypass FK/trigger ordering)"
+"${PG_RESTORE}" \
+    --data-only \
+    --schema=quantdb \
+    --no-owner \
+    --no-privileges \
+    --disable-triggers \
+    -U postgres \
+    -h "${HOST}" \
+    -p "${PORT}" \
+    -d "${TEST_DATABASE}" \
+    "${TEST_DUMP}"
+
+echo ""
+echo "==> Deduplicating and restoring unique constraints"
+psql -U postgres -h "${HOST}" -p "${PORT}" -d "${TEST_DATABASE}" -c "
+  DELETE FROM quantdb.values_cat a USING quantdb.values_cat b
+    WHERE a.id > b.id AND a.object = b.object AND a.instance = b.instance AND a.desc_cat = b.desc_cat;
+  DELETE FROM quantdb.values_quant a USING quantdb.values_quant b
+    WHERE a.id > b.id AND a.object = b.object AND a.instance = b.instance AND a.desc_quant = b.desc_quant;
+  ALTER TABLE quantdb.values_cat ADD CONSTRAINT values_cat_object_instance_desc_cat_key UNIQUE (object, instance, desc_cat);
+  ALTER TABLE quantdb.values_quant ADD CONSTRAINT values_quant_object_instance_desc_quant_key UNIQUE (object, instance, desc_quant);
+"
+
+echo ""
+echo "==> Verifying local ${TEST_DATABASE}"
+psql -U postgres -h "${HOST}" -p "${PORT}" -d "${TEST_DATABASE}" -c "
+  SELECT
+    (SELECT count(*) FROM quantdb.values_quant) AS values_quant,
+    (SELECT count(*) FROM quantdb.values_cat) AS values_cat,
+    (SELECT count(*) FROM quantdb.values_inst) AS values_inst,
+    (SELECT count(*) FROM quantdb.objects) AS objects;
+"
+
+echo ""
+echo "==> Done. Local quantdb_test is now a mirror of AWS quantdb_test."
+echo "    Admin creds in ~/.pgpass can be removed — future runs use local trust auth only."

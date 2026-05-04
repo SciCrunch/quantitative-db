@@ -1,0 +1,33 @@
+{
+  "featureId": "fix-pixel-conversion-and-sql-idempotency",
+  "reviewedAt": "2026-03-28T06:13:11Z",
+  "commitId": "2dbe4ac",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The fix resolves the prior blocking failures from both original reviews. `sql/inserts_microct.sql` now removes pre-existing duplicate `fascicleEdge*` rows and uses NULL-safe `WHERE NOT EXISTS` inserts for the nullable-domain `descriptors_cat` rows, the per-slice descriptor labels now use um/um2 names while reusing existing f006 descriptors where labels already existed, and both pixel-based extraction paths now multiply raw values before emitting flat dicts. I found no remaining blocking correctness issues.",
+    "issues": [
+      {
+        "file": "test/test_schema_microct.py",
+        "line": 425,
+        "severity": "non_blocking",
+        "description": "The schema idempotency coverage still treats idempotency as only 'second execution does not raise'. The production SQL fix in `sql/inserts_microct.sql:272-300` is now NULL-safe, but `TestIdempotency.test_run_twice_no_errors()` never asserts that each `fascicleEdge*` label still has exactly one row after the rerun, so a future regression could silently reintroduce duplicate edge descriptors without failing this test."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The `db-pipeline-worker` skill still gives incomplete idempotency guidance for PostgreSQL tables with nullable unique-key columns. It says to use `ON CONFLICT DO NOTHING`, but this feature needed a NULL-safe `WHERE NOT EXISTS` pattern to avoid duplicating `descriptors_cat` rows when `domain` is NULL.",
+      "evidence": "`.factory/skills/db-pipeline-worker/SKILL.md:47-48` says to use `ON CONFLICT DO NOTHING` for idempotency, while `sql/inserts_microct.sql:266-300` now requires DELETE + `WHERE NOT EXISTS` logic because the relevant `descriptors_cat` rows have `domain IS NULL`."
+    },
+    {
+      "area": "skills",
+      "observation": "The worker again reported `skillFeedback.followedProcedure: true`, but the transcript shows implementation edits landing before the test updates, so the skill's TDD procedure is still not being followed or enforced consistently on fix features.",
+      "evidence": "`.factory/skills/db-pipeline-worker/SKILL.md:35-39` requires failing tests before implementation; session `ebfd764f-1889-4f9e-9765-560f37899467` edits `sql/inserts_microct.sql` and `quantdb/extract_microct.py` before later editing `test/test_extract_microct.py` and `test/test_schema_microct.py`, while the handoff still marks `skillFeedback.followedProcedure` as true."
+    }
+  ],
+  "addressesFailureFrom": ".factory/validation/schema-extraction/scrutiny/reviews/schema-lookup-data.json; .factory/validation/schema-extraction/scrutiny/reviews/extraction-module.json",
+  "summary": "Pass. Commit `2dbe4ac` resolves the prior blocking issues for both original failed features: the NULL-domain `descriptors_cat` inserts are now duplicate-safe and cleanup existing extras, the per-slice descriptor labels moved to um/um2 with reuse of matching f006 descriptors, and both pixel-based extraction parsers now emit converted values. One non-blocking gap remains: the schema idempotency test still checks only for 'no error on rerun' instead of asserting duplicate-free row counts."
+}

@@ -1,0 +1,13 @@
+commands:
+  install: /Users/tmsincomb/miniforge3/envs/quantdb/bin/pip install -e .
+  test: /Users/tmsincomb/miniforge3/envs/quantdb/bin/python -m pytest test/test_ingest_microct.py test/test_extract_microct.py -v
+  test-all: /Users/tmsincomb/miniforge3/envs/quantdb/bin/python -m pytest test/ -v --ignore=test/test_aws.py
+  lint: /Users/tmsincomb/miniforge3/envs/quantdb/bin/python -m flake8 quantdb/extract_microct.py quantdb/ingest_microct.py
+
+services:
+  postgres:
+    start: pg_ctl -D /opt/homebrew/var/postgresql@16 start
+    stop: pg_ctl -D /opt/homebrew/var/postgresql@16 stop
+    healthcheck: /opt/homebrew/opt/postgresql@16/bin/pg_isready -h localhost -p 5432
+    port: 5432
+    depends_on: []

@@ -1,0 +1,39 @@
+{
+  "featureId": "schema-lookup-data",
+  "reviewedAt": "2026-03-28T05:53:24Z",
+  "commitId": "d0533a1",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The feature adds the requested MicroCT lookup rows and a broad schema test module, but the new GraphML edge descriptor insert is not actually idempotent. Because `descriptors_cat.domain` is nullable, `ON CONFLICT (domain, range, label) DO NOTHING` does not suppress duplicate `(NULL, 'controlled', label)` rows on a second run, so the feature misses its core idempotency requirement.",
+    "issues": [
+      {
+        "file": "sql/inserts_microct.sql",
+        "line": 268,
+        "severity": "blocking",
+        "description": "The edge descriptor insert uses `ON CONFLICT (domain, range, label) DO NOTHING` even though all three rows set `domain = NULL`. In PostgreSQL, `UNIQUE (domain, range, label)` does not treat `NULL` values as equal, so rerunning this statement inserts duplicate `descriptors_cat` rows instead of hitting the conflict target. That violates the feature's idempotency requirement and makes `desc_cat_from_label()` ambiguous because `sql/tables.sql:756-760` resolves NULL-domain descriptors by `label` alone."
+      },
+      {
+        "file": "test/test_schema_microct.py",
+        "line": 425,
+        "severity": "non_blocking",
+        "description": "The idempotency coverage only checks that a second `psql` execution does not raise an error, and the edge-descriptor assertions at `test/test_schema_microct.py:360-365` use `fetchone()` rather than a row-count assertion. As a result, the suite stays green even when the second run silently creates duplicate `descriptors_cat` rows, so the tests do not actually enforce the semantic idempotency promised by the feature."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The `db-pipeline-worker` skill's generic instruction to use `ON CONFLICT DO NOTHING` for idempotency is incomplete for this schema. `descriptors_cat` uses a nullable unique key, so following that guidance verbatim can still create duplicates when `domain` is NULL.",
+      "evidence": "`.factory/skills/db-pipeline-worker/SKILL.md:47-49` says to use `ON CONFLICT DO NOTHING` for SQL inserts; `sql/tables.sql:125-134` defines `descriptors_cat` as `UNIQUE (domain, range, label)` with nullable `domain`; `sql/inserts_microct.sql:264-268` applies that pattern to NULL-domain rows and ships the duplicate-row bug."
+    },
+    {
+      "area": "services",
+      "observation": "The repository's documented test command does not include the schema validator introduced by this feature, so the default shared test entrypoint can miss regressions in `sql/inserts_microct.sql` and `test/test_schema_microct.py`.",
+      "evidence": "`.factory/services.yaml:2-4` defines `test` as `python -m pytest test/test_ingest_microct.py test/test_extract_microct.py -v`, while the feature's verification step in `/Users/tmsincomb/.factory/missions/dc687c65-7460-4de7-9184-075e91a337da/features.json:119-123` and the handoff both rely on `test/test_schema_microct.py`."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Fail: the schema lookup commit mostly matches the requested lookup additions, but the NULL-domain `descriptors_cat` insert is not idempotent and the new tests do not detect the duplicate-row failure mode. I wrote the scrutiny report with one blocking correctness issue, one non-blocking test-gap issue, and two shared-state observations."
+}

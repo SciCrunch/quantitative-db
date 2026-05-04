@@ -1,0 +1,59 @@
+{
+  "groupId": "comparison-utils",
+  "testedAt": "2026-03-25T08:42:49.664243+00:00",
+  "isolation": {
+    "surface": "cli-pytest",
+    "database": "quantdb_test",
+    "host": "localhost",
+    "port": 5432,
+    "python": "/Users/tmsincomb/miniforge3/envs/quantdb/bin/python",
+    "repoRoot": "/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db",
+    "missionDir": "/Users/tmsincomb/.factory/missions/c5070914-3d81-4750-941d-10840cd29d06"
+  },
+  "toolsUsed": [
+    "pytest"
+  ],
+  "commandsRun": [
+    {
+      "command": "/Users/tmsincomb/miniforge3/envs/quantdb/bin/python -m pytest /Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/test/test_snapshot.py -v --no-header -x --ignore=/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/test/test_api.py -k 'TestComparisonIdentical or TestComparisonDetectsAddedRows or TestComparisonDetectsRemovedRows or TestComparisonDetectsModifiedValues or TestComparisonDetectsCountMismatch or TestComparisonDetectsMissingFiles or TestRowCountMismatchForcesFailure'",
+      "exitCode": 0,
+      "evidence": "gold-standard-snapshots/comparison-utils/pytest-comparison-utils.txt"
+    }
+  ],
+  "assertions": [
+    {
+      "id": "VAL-SNAP-008",
+      "title": "Comparison utility detects differences",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Review the validation contract and comparison-focused cases in test/test_snapshot.py",
+          "expected": "The CLI tests cover identical comparisons plus added rows, removed rows, modified values, count mismatches, missing files, and forced mismatch on row-count differences.",
+          "observed": "Located targeted pytest classes for all required behaviors, all exercising compare_snapshot() and its structured diff results."
+        },
+        {
+          "action": "Run the targeted pytest selection against quantdb_test on the real CLI surface",
+          "expected": "The comparison utility tests pass end-to-end under pytest.",
+          "observed": "Pytest collected 60 tests, selected 18 relevant comparison tests, and all 18 passed in 33.29s."
+        },
+        {
+          "action": "Inspect the saved pytest output for scenario coverage",
+          "expected": "Evidence confirms detection for identical state, added rows, removed rows, modified values, summary count mismatches, missing fixture files, and row-count mismatch failure.",
+          "observed": "Passing tests explicitly covered each required scenario, including duplicate-PK row-count mismatch forcing is_match=False even when diff buckets may be empty."
+        }
+      ],
+      "evidence": {
+        "terminalSnapshots": [
+          "gold-standard-snapshots/comparison-utils/pytest-comparison-utils.txt"
+        ],
+        "commandOutput": "18 passed, 42 deselected, 16 warnings in 33.29s.",
+        "warnings": "16 SQLAlchemy automap overlap warnings were emitted; these match the documented pre-existing cosmetic warnings for this repo.",
+        "network": "not applicable"
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested VAL-SNAP-008 via targeted pytest on test/test_snapshot.py. The comparison utility passed all real CLI cases for identical snapshots plus added, removed, modified, missing-file, count-mismatch, and forced row-count-mismatch detection."
+}

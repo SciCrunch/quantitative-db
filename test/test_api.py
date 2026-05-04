@@ -1,22 +1,15 @@
 import json
 import pprint
 
-from flask_sqlalchemy import SQLAlchemy
-
-from quantdb.api import make_app
 from quantdb.utils import log
 
+dataset_uuid = 'aa43eda8-b29a-4c25-9840-ecbd57598afc'
+some_object = '414886a9-9ec7-447e-b4d8-3ae42fda93b7'  # XXX FAKE
+actual_package_uuid = '15bcbcd5-b054-40ef-9b5c-6a260d441621'
+base = 'http://localhost:8989/api/1/'
 
-def test():
-    db = SQLAlchemy()
-    app = make_app(db=db, dev=True)
-    client = app.test_client()
-    runner = app.test_cli_runner()
 
-    dataset_uuid = 'aa43eda8-b29a-4c25-9840-ecbd57598afc'
-    some_object = '414886a9-9ec7-447e-b4d8-3ae42fda93b7'  # XXX FAKE
-    actual_package_uuid = '15bcbcd5-b054-40ef-9b5c-6a260d441621'
-    base = 'http://localhost:8989/api/1/'
+def test(client):
     urls = (
         f'{base}values/inst',
         f'{base}values/inst?dataset={dataset_uuid}',
@@ -108,18 +101,11 @@ def test():
     # q = client.get(f'{base}values/quant?dataset={dataset_uuid}&aspect=distance&return-query=true').data.decode()
     # q = client.get(f'{base}values/cat?object={actual_package_uuid}&prov=true&return-query=true').data.decode()
     # print(q)
-    breakpoint()
 
 
-def test_demo_load():
-    db = SQLAlchemy()
-    app = make_app(db=db, dev=True)
-    client = app.test_client()
-    runner = app.test_cli_runner()
-
+def test_demo_load(client):
     dataset_uuid = '55c5b69c-a5b8-4881-a105-e4048af26fa5'
     package_uuid = '20720c2e-83fb-4454-bef1-1ce6a97fa748'
-    base = 'http://localhost:8989/api/1/'
     urls = (f'{base}values/cat-quant?desc-inst=fascicle-cross-section',)
 
     resps = []
@@ -130,5 +116,3 @@ def test_demo_load():
         resp.url = resp.request.url
         resp.content = resp.data
         resps.append(json.loads(resp.data.decode()))
-
-    breakpoint()

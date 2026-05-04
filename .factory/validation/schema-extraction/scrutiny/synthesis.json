@@ -1,0 +1,46 @@
+{
+  "milestone": "schema-extraction",
+  "round": 2,
+  "status": "pass",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "psql -U postgres -h localhost -d postgres -c \"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'quantdb_test' AND pid <> pg_backend_pid();\" && \"/Users/tmsincomb/miniforge3/envs/quantdb/bin/python\" -m pytest \"/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/test/test_schema_microct.py\" \"/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/test/test_extract_microct.py\" -v",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "\"/Users/tmsincomb/miniforge3/envs/quantdb/bin/python\" -c \"import pathlib,tomllib; data=tomllib.loads(pathlib.Path('/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/pyproject.toml').read_text()); tool=data.get('tool',{}); configured=[name for name in ('mypy','pyright','pytype','basedpyright') if name in tool]; print('NO_TYPECHECKER_CONFIGURED' if not configured else 'TYPECHECKERS=' + ','.join(configured))\"",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "\"/Users/tmsincomb/miniforge3/envs/quantdb/bin/python\" -m pre_commit run isort --files \"/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/quantdb/extract_microct.py\" \"/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/test/test_extract_microct.py\" \"/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/test/test_schema_microct.py\" && \"/Users/tmsincomb/miniforge3/envs/quantdb/bin/python\" -m pre_commit run blue --files \"/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/quantdb/extract_microct.py\" \"/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/test/test_extract_microct.py\" \"/Users/tmsincomb/Dropbox (Personal)/repos/quantitative-db/test/test_schema_microct.py\"",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "skills",
+      "suggestion": "Update `db-pipeline-worker` guidance to call out that `ON CONFLICT ... DO NOTHING` is not sufficient for nullable unique keys in PostgreSQL. Workers should use `WHERE NOT EXISTS`, a `DO $$` guard, or another NULL-safe pattern when the uniqueness definition includes nullable columns.",
+      "evidence": "Round 1 failed because `sql/inserts_microct.sql` duplicated `(NULL, range, label)` `descriptors_cat` rows on rerun, and the round 2 fix review confirmed that a NULL-safe `WHERE NOT EXISTS` pattern was required to make the inserts truly idempotent.",
+      "isSystemic": true
+    },
+    {
+      "target": "skills",
+      "suggestion": "Tighten `db-pipeline-worker` TDD compliance guidance or handoff checks so workers do not claim `skillFeedback.followedProcedure: true` when transcript evidence shows implementation edits landed before the corresponding tests were updated.",
+      "evidence": "The round 2 review for `fix-pixel-conversion-and-sql-idempotency` again found code edits in `sql/inserts_microct.sql` and `quantdb/extract_microct.py` before later test updates, while the worker still reported `skillFeedback.followedProcedure: true`. A similar mismatch was already observed in round 1.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [],
+  "previousRound": ".factory/validation/schema-extraction/scrutiny/synthesis.round1.json"
+}

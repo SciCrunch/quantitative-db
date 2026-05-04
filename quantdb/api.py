@@ -935,9 +935,10 @@ def getArgs(request, endpoint, dev=False):
     return out
 
 
-def make_app(db=None, name='quantdb-api-server', dev=False):
+def make_app(db=None, name='quantdb-api-server', dev=False, test=True):
     app = Flask(name)
-    kwargs = {k:auth.get(f'db-{k}')  # TODO integrate with cli options
+    prefix = 'test-db' if test else 'db'
+    kwargs = {k:auth.get(f'{prefix}-{k}')
               for k in ('user', 'host', 'port', 'database')}
     kwargs['dbuser'] = kwargs.pop('user')
     app.config['SQLALCHEMY_DATABASE_URI'] = dbUri(**kwargs)  # use os.environ.update
@@ -958,7 +959,6 @@ def make_app(db=None, name='quantdb-api-server', dev=False):
         except (exc.UnknownArg, exc.ArgMissingValue, exc.BadValue) as e:
             return json.dumps({'error': e.args[0], 'http_response_status': 422}), 422
         except Exception as e:
-            breakpoint()
             raise e
 
         def gkw(k): return k in kwargs and kwargs[k]
@@ -970,7 +970,6 @@ def make_app(db=None, name='quantdb-api-server', dev=False):
         try:
             query, params = query_fun(endpoint, kwargs)
         except Exception as e:
-            breakpoint()
             raise e
 
         if gkw('return-query'):
@@ -1005,14 +1004,12 @@ def make_app(db=None, name='quantdb-api-server', dev=False):
         try:
             res = session.execute(sql_text(query), params)
         except Exception as e:
-            breakpoint()
             raise e
 
         try:
             out, total_count = json_fun(record_type, res, prov=('prov' in kwargs and kwargs['prov']))
             resp = json.dumps(wrap_out(endpoint, kwargs, out, total_count), cls=JEncode), 200, {'Content-Type': 'application/json'}
         except Exception as e:
-            breakpoint()
             raise e
 
         return resp
