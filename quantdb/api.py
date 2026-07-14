@@ -57,12 +57,15 @@ url_sql_where = (  # TODO arity spec here
 )
 
 
-def get_where(kwargs):
+def get_where(kwargs, incequiv=False):
     _where_cat = []
     _where_quant = []
     params = {}
     for u, s, w, t in url_sql_where:
         if u in kwargs and kwargs[u]:
+            if not incequiv and u == 'dataset':
+                w = w.replace('im.', 'imout.')
+
             params[s] = kwargs[u]
             if t == 'cat':
                 _where_cat.append(w)
@@ -319,7 +322,8 @@ LEFT OUTER JOIN addresses AS ada ON ada.id = odq.addr_aspect
         (s_prov_objs + s_prov_i + ((',\n' + s_prov_c) if endpoint != 'values/inst' else '')) if kw.prov else '')
     select_quant = f'SELECT {maybe_distinct}{ep_select_quant}{q_count_quant}' + (
         (s_prov_objs + s_prov_i + ((',\n' + s_prov_q) if endpoint != 'values/inst' else '')) if kw.prov else '')
-    _where_cat, _where_quant, params = get_where(kwargs)
+    incequiv = gkw('include-equivalent')
+    _where_cat, _where_quant, params = get_where(kwargs, incequiv=incequiv)
     where_cat = f'WHERE {_where_cat}' if _where_cat else ''
     where_quant = f'WHERE {_where_quant}' if _where_quant else ''
 
@@ -328,7 +332,6 @@ LEFT OUTER JOIN addresses AS ada ON ada.id = odq.addr_aspect
         'CROSS JOIN LATERAL get_child_closed_inst(icin.id) AS ic ON im.id = ic.child',
     )) if kw.parent_inst else ''
 
-    incequiv = gkw('include-equivalent')
     _q_all_objects = (
         # TODO this is retained for legacy purposes, the proper approach is to
         # find all instances and then use the subquery to find objects
@@ -781,8 +784,9 @@ def cons_query(_where_cat, _where_quant, q_cat, q_quant, where_cat, where_quant,
     if descriptor_level:
         _odi = 'idin.label = any(:desc_inst)'
         _odd = 'im.dataset = :dataset'
-        only_di_cat = _where_cat == _odi or _where_cat == _odd
-        only_di_quant = _where_quant == _odi or _where_quant == _odd
+        _oddo = 'imout.dataset = :dataset'
+        only_di_cat = _where_cat == _odi or _where_cat == _odd or _where_cat == _oddo
+        only_di_quant = _where_quant == _odi or _where_quant == _odd or _where_quant == _oddo
         #breakpoint()
         if only_di_cat and only_di_quant:
             if False:  # FIXME TODO need to figure out how to give priority based on endpoint here
