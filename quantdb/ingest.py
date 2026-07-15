@@ -1951,15 +1951,32 @@ register_type(AsIs, 'quantity')  # HACK
 register_type(AsIs, 'range')
 
 
-def extract_fasc_fib(dataset_uuid, source_local=True):
-
+def extract_fasc_fib(dataset_uuid, source_local=True, timestamp=None):
     dataset_id = RemoteId('dataset:' + dataset_uuid)
-    resp_dataset = requests.get(f'https://cassava.ucsd.edu/sparc/datasets/{dataset_uuid}/LATEST/curation-export.json')
-    blob_dataset = resp_dataset.json()
-    ir_dataset = fromJson(blob_dataset)
+    export_timestamp = 'LATEST' if timestamp is None else timestamp
+    resp_dataset = requests.get(f'https://cassava.ucsd.edu/sparc/datasets/{dataset_uuid}/{export_timestamp}/curation-export.json')
+    if resp_dataset.ok:
+        blob_dataset = resp_dataset.json()
+        ir_dataset = fromJson(blob_dataset)
+        resp = requests.get(f'https://cassava.ucsd.edu/sparc/datasets/{dataset_uuid}/{export_timestamp}/path-metadata.json')
+        blob = resp.json()
+    else:
+        resp_xz = requests.get(f'https://cassava.ucsd.edu/sparc/datasets/{dataset_uuid}/{export_timestamp}.tar.xz')
+        import lzma
+        import tarfile
+        import io
+        qq = lzma.decompress(resp_xz.content)
+        qqio = io.BytesIO(qq)
+        with tarfile.open(fileobj=qqio, mode="r:*") as tar:
+            with tar.extractfile('./curation-export.json') as dsfd:
+                dss = dsfd.read().decode()
+            with tar.extractfile('./path-metadata.json') as pmfd:
+                pms = pmfd.read().decode()
 
-    resp = requests.get(f'https://cassava.ucsd.edu/sparc/datasets/{dataset_uuid}/LATEST/path-metadata.json')
-    blob = resp.json()
+        blob_dataset = json.loads(dss)
+        blob = json.loads(pms)
+        ir_dataset = fromJson(blob_dataset)
+
     for j in blob['data']:
         j['type'] = 'pathmeta'
 
@@ -2385,14 +2402,15 @@ def ingest_demo_jp2(session, source_local=True, do_insert=True, commit=False, de
     ingest(dataset_uuid, extract_demo_jp2, session, commit=commit, dev=dev)
 
 
-def ingest_fasc_fib(session, source_local=True, do_insert=True, commit=False, dev=False):
+def ingest_fasc_fib(session, source_local=False, do_insert=True, commit=False, dev=False):
     #dataset_uuid = 'ec6ad74e-7b59-409b-8fc7-a304319b6faf'  # f003
     dataset_uuid = '2a3d01c0-39d3-464a-8746-54c9d67ebe0f'  # f006
-    ingest(dataset_uuid, extract_fasc_fib, session, commit=commit, dev=dev)
+    f006_prepub = '2025-06-09T181223,319967Z'
+    ingest(dataset_uuid, extract_fasc_fib, session, commit=commit, dev=dev, timestamp=f006_prepub)
 
 
 def ingest_reva_ft_all(session, source_local=False, do_insert=True, batch=False, commit=False, dev=False):
-    do_all = False
+    do_all = True
     if do_all:
         from sparcur.config import auth
         idft = auth.get_list('datasets-ft')
