@@ -1899,8 +1899,14 @@ def path_from_blob(pb):
             rdrp = rdp / pb['dataset_relative_path']
             prdrp = Path(rdrp)
             cache = prdrp.cache
+            local_object_cache_path = (
+                rdp.parent / '.operations' / 'objects' /
+                f'{remote_id.uuid_cache_path_string(2, 1)}-{remote_id.file_id}')
             if cache is None:
-                if not prdrp.exists() and not prdrp.is_broken_symlink():
+                if local_object_cache_path.exists():
+                    # check to see if we have it in the .objects archive
+                    return None, local_object_cache_path
+                elif not prdrp.exists() and not prdrp.is_broken_symlink():
                     log.error(f'likely out of sync since {prdrp} is missing in the local version at {p}')
                     continue
                 else:
