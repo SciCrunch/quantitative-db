@@ -87,6 +87,7 @@ INSERT INTO controlled_terms (iri, label) VALUES
 ('http://purl.obolibrary.org/obo/UBERON_0001021', 'nerve'),
 
 ('https://uri.interlex.org/tgbugs/uris/readable/quantdb/controlled/microct', 'microct'),
+('https://uri.interlex.org/tgbugs/uris/readable/quantdb/controlled/immunohistochemistry', 'immunohistochemistry'),
 
 --('https://uri.interlex.org/tgbugs/uris/readable/quantdb/controlled/', ''),
 ('https://uri.interlex.org/tgbugs/uris/readable/quantdb/controlled/thing', 'controlled thing')

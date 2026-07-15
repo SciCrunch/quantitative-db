@@ -13,6 +13,7 @@ from sparcur.paths import Path
 from sparcur.utils import PennsieveId as RemoteId
 from sparcur.utils import fromJson, log as _slog, register_type
 from sparcur.idmap import identifier_indexes
+from sparcur.core import OntTerm
 from sqlalchemy import create_engine
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Session
@@ -322,7 +323,11 @@ def anat_index(sample):
     # count the number of distinct values less than a given integer
     # create the map
 
-    if sample.count('-') < 3:
+    if '-' not in sample:
+        # something has gone very wrong
+        breakpoint()
+        raise ValueError(sample)
+    elif sample.count('-') < 3:
         sam, sam_id = sample.split('-')
         seg_id = None
     else:
@@ -381,6 +386,7 @@ def proc_anat(rawind):
 _translate_species = {}
 _translate_species['ncbitaxon:9606'] = 'human'  # oof
 _translate_species['http://purl.obolibrary.org/obo/NCBITaxon_9606'] = 'human'
+_translate_species[OntTerm('NCBITaxon:9606', label='Homo sapiens')] = 'human'
 def translate_species(v):
     if isinstance(v, dict):
         v = v['id']
@@ -411,6 +417,7 @@ def pps(path_structure, dataset_metadata=None):
     site = None
     site_type = None
     fasc = None
+    _modality = None
     if len(path_structure) == 6:
         # FIXME utter hack
         top, subject, sam_1, segment, modality, file = path_structure
@@ -424,10 +431,17 @@ def pps(path_structure, dataset_metadata=None):
                 segment = site_meta['specimen_id']
             else:
                 segment = None
+        elif segment == 'microct-loose':
+            modality = 'microct'
+            segment = sam_1
 
         if modality.startswith('fasc-'):
             # FIXME we may want to skip in this case because they are aggregated later in the higher level fibers.csv files
             fasc = modality
+
+        elif modality == 'extra-stain':
+            modality = 'ihc'
+
     elif len(path_structure) == 5:
         top, subject, sam_1, segment, file = path_structure
         if segment.startswith('site-'):
@@ -439,14 +453,27 @@ def pps(path_structure, dataset_metadata=None):
                 segment = site_meta['specimen_id']
             else:
                 segment = None  # FIXME without sites metadata we can't determine the actual sample so have to backfill later
+        elif segment in ('ultrasound',):  # some 5 cases contain modalities
+            _modality = segment
+            segment = sam_1  # needed to match return behavior, sam_1 isn't actually a segment in this case
+        elif segment in 'microct-loose':
+            modality = 'microct'
+            segment = sam_1
 
         if segment is not None and segment.count('-') > 3:
             level = segment
 
-        modality = None  # FIXME from metadata sample id
-        if file.endswith('.jpx') and ('9um' in file or '36um' in file):
+        modality = None if _modality is None else _modality  # FIXME from metadata sample id
+        if file.endswith('.jpx') or file.endswith('.nii.gz') and ('9um' in file or '36um' in file):
             modality = 'microct'
             sample_type = 'nerve-volume'
+        elif file.endswith('.nii.gz'):
+            # FIXME these are technically microct but not 100% sure what to do with them
+            modality = 'microct'
+            sample_type = 'nerve-volume'
+        elif level is not None and (file.endswith('.tif') or file.endswith('.tiff')):
+            modality = 'ihc'
+            sample_type = 'nerve-cross-section'
         elif file.endswith('fascicles.csv') or file.endswith('fibers.csv'):
             # XXX watch out for the fact that fibers files are present at multiple levels
             modality = 'ihc'
@@ -788,10 +815,12 @@ class InternalIds:
         }
 
         self.ct_mod = q.cterm_from_label('microct')  # lol ct ct
+        self.ct_ihc = q.cterm_from_label('immunohistochemistry')
         self.ct_hack = q.cterm_from_label('hack-associate-some-value')
         self.ct_myelinated = q.cterm_from_label('myelinated')
         self.ct_unmyelinated = q.cterm_from_label('unmyelinated')
         self.luct = {
+            'ihc': self.ct_ihc,
             'ct-hack': self.ct_hack,
             'microct': self.ct_mod,
             'myelinated': self.ct_myelinated,
@@ -876,26 +905,40 @@ def ingest(dataset_uuid, extract_fun, session, commit=False, dev=False, values_a
         )
 
     batchsize = 20000
-    for chunk in chunk_list(values_objects, batchsize):
-        vt, params = makeParamsValues(chunk)
-        session.execute(sql_text(f'INSERT INTO objects (id, id_type, id_file) VALUES {vt}{ocdn}'), params)
-        if commit:
-            session.commit()
+    if values_objects:
+        for chunk in chunk_list(values_objects, batchsize):
+            vt, params = makeParamsValues(chunk)
+            if not vt:
+                breakpoint()
+            session.execute(sql_text(f'INSERT INTO objects (id, id_type, id_file) VALUES {vt}{ocdn}'), params)
+            if commit:
+                session.commit()
 
-    for chunk in chunk_list(values_dataset_object, batchsize):
-        vt, params = makeParamsValues(chunk)
-        session.execute(sql_text(f'INSERT INTO dataset_object (dataset, object) VALUES {vt}{ocdn}'), params)
-        if commit:
-            session.commit()
+    else:
+        log.warning(f'no objects for {dataset_uuid}?')
 
-    for chunk in chunk_list(values_instances, batchsize):
-        vt, params = makeParamsValues(chunk)
-        session.execute(
-            sql_text(f'INSERT INTO values_inst (dataset, id_formal, type, desc_inst, id_sub, id_sam) VALUES {vt}{ocdn}'),
-            params,
-        )
-        if commit:
-            session.commit()
+    if values_dataset_object:
+        for chunk in chunk_list(values_dataset_object, batchsize):
+            vt, params = makeParamsValues(chunk)
+            session.execute(sql_text(f'INSERT INTO dataset_object (dataset, object) VALUES {vt}{ocdn}'), params)
+            if commit:
+                session.commit()
+
+    else:
+        log.warning(f'no dataset object for {dataset_uuid}?')
+
+    if values_instances:
+        for chunk in chunk_list(values_instances, batchsize):
+            vt, params = makeParamsValues(chunk)
+            session.execute(
+                sql_text(f'INSERT INTO values_inst (dataset, id_formal, type, desc_inst, id_sub, id_sam) VALUES {vt}{ocdn}'),
+                params,
+            )
+            if commit:
+                session.commit()
+
+    else:
+        log.warning(f'no instances for {dataset_uuid}?')
 
     # inserts that depend on instances having already been inserted
     # ilt = q.insts_from_dataset_ids(dataset_uuid, [f for d, f, *rest in values_instances])
@@ -1021,9 +1064,48 @@ def extract_reva_ft(dataset_uuid, source_local=False, visualize=False):
 
     updated_transitive = max([i['timestamp_updated'] for i in ir['data'][1:]])  # 1: to skip the dataset object itself
 
-    jpx = [r for r in ir['data'] if 'mimetype' in r and r['mimetype'] == 'image/jpx']
+    f026_oops = ('C1L', 'C2L', 'C3L', 'C4L', 'C5L', 'C6L', 'C7L', 'C8L',
+                 'T1L', 'T2L', 'T3L', 'T4L', 'T5L', 'T6L', 'T7L',
+                 'C1R', 'C2R', 'C3R', 'C4R', 'C5R', 'C6R', 'C7R', 'C8R', 'C9R',
+                 'T1R', 'T2R', 'T3R', 'T4R', 'T5R',)
+    f027_oops = ('C1L', 'C2L', 'C3L', 'C4L', 'C5L', 'C6L', 'C7L',
+                 'T1L', 'T2L', 'T3L', 'T4L', 'T5L', 'T6L',
+                 'C1R', 'C2R', 'C3R', 'C4R', 'C5R', 'C6R', 'C7R',
+                 'T1R', 'T2R', 'T3R', 'T4R', 'T5R', 'T6R', 'T7R',)
 
-    exts = [ext_pmeta(j) for j in jpx]
+    f028_oops = ('C1L', 'C2L', 'C3L', 'C4L', 'C5L', 'C6L', 'C7L', 'C8L',
+                 'T1L', 'T2L', 'T3L', 'T4L', 'T5L', 'T6L', 'T7L', 'T8L', 'T9L', 'T10L',
+                 'C1R', 'C2R', 'C3R', 'C4R', 'C5R', 'C6R',
+                 'T1R', 'T2R', 'T3R', 'T4R', 'T5R', 'T6R', 'T7R',)
+
+    jpx = [r for r in ir['data'] if 'mimetype' in r and r['mimetype'] == 'image/jpx']
+    tif = [r for r in ir['data'] if 'mimetype' in r and r['mimetype'] == 'image/tiff']  # XXX we need this for ihc right ???
+    nii = [r for r in ir['data'] if 'mimetype' in r and r['mimetype'] == 'image/gznii' and
+           'microct-loose' not in r['dataset_relative_path'].parts and
+           (r['dataset_relative_path'].parts[1] != 'sub-f026' or  # f026 issue
+            r['dataset_relative_path'].parts[3] not in f026_oops) and
+           (r['dataset_relative_path'].parts[1] != 'sub-f027' or  # f027 issue
+            r['dataset_relative_path'].parts[3] not in f027_oops) and
+           (r['dataset_relative_path'].parts[1] != 'sub-f028' or  # f028 issue
+            r['dataset_relative_path'].parts[3] not in f028_oops)
+           ]  # FIXME TODO I think we wanted to include the tiff files too?
+    badnii = [r for r in ir['data'] if 'mimetype' in r and r['mimetype'] == 'image/gznii' and
+              ('microct-loose' in r['dataset_relative_path'].parts or
+               (r['dataset_relative_path'].parts[1] == 'sub-f026' and  # f026 issue
+                r['dataset_relative_path'].parts[3] in f026_oops) or
+               (r['dataset_relative_path'].parts[1] == 'sub-f027' and  # f027 issue
+                r['dataset_relative_path'].parts[3] in f027_oops) or
+               (r['dataset_relative_path'].parts[1] == 'sub-f028' and  # f028 issue
+                r['dataset_relative_path'].parts[3] in f028_oops)
+               )]
+    if badnii:
+        msg = f'badnii {dataset_uuid} {[b["dataset_relative_path"] for b in badnii]}'
+        log.debug(msg)
+
+    if not nii:
+        log.warning(f'no objects to ingest for {dataset_uuid}')
+
+    exts = [ext_pmeta(j) for j in nii] + [ext_pmeta(j) for j in tif]
 
     (instances, _parents, objects, values_objects, values_dataset_object, _, _, #values_q, values_c
      ) = ext_values(exts, dataset_metadata=ir_dataset)
@@ -1175,6 +1257,7 @@ def extract_reva_ft(dataset_uuid, source_local=False, visualize=False):
     # to a an instance can proceed, even if the mapping of that instance is from an external source
     # XXX the external source is part of the issue I think
     def make_void(this_dataset_updated_uuid, i):
+        hrm = {e['object'].uuid: e for e in exts if e['sample_type'] == 'nerve-volume'}
         void = [  # FIXME this is rather annoying because you have to list all expected types in advance, but I guess that is what we want
             (this_dataset_updated_uuid, i.id_human, i.addr_jp_dm_sub_id, i.addr_jp_dm_sub_ty),
             (this_dataset_updated_uuid, i.id_nerve, i.addr_jp_dm_sam_id, i.addr_jp_dm_sam_ty),
@@ -1189,7 +1272,7 @@ def extract_reva_ft(dataset_uuid, source_local=False, visualize=False):
         ] + [
             (
                 o,
-                i.id_nerve_volume,
+                (i.id_nerve_volume if o in hrm else i.id_nerve_cross_section),
                 i.addr_const_null,
                 None,
             )  # XXX FIXME this is the only way I can think to do this right now ?
@@ -1234,7 +1317,7 @@ def extract_reva_ft(dataset_uuid, source_local=False, visualize=False):
                 i.luct[e[k]],
                 this_dataset_updated_uuid,
                 # e['object'].uuid,  # FIXME still not right this comes from the updated latest
-                i.id_nerve_volume,
+                (i.id_nerve_volume if e['sample_type'] == 'nerve-volume' else i.id_nerve_cross_section),
                 cd,  # if we mess this up the fk ok obj_desc_cat will catch it :)
                 luinst[e['dataset'].uuid, e['sample']],  # get us the instance
             )
@@ -1245,7 +1328,7 @@ def extract_reva_ft(dataset_uuid, source_local=False, visualize=False):
                 None,
                 i.ct_hack,
                 e['object'].uuid,
-                i.id_nerve_volume,
+                (i.id_nerve_volume if e['sample_type'] == 'nerve-volume' else i.id_nerve_cross_section),
                 i.cd_obj,  # if we mess this up the fk ok obj_desc_cat will catch it :)
                 luinst[e['dataset'].uuid, e['sample']],  # get us the instance
             )
@@ -1528,12 +1611,12 @@ def extract_demo_jp2(dataset_uuid, source_local=False):
 
 
 import augpathlib as aug
-import scipy
 from sparcur.datasets import SamplesFilePath
 
-
 def extract_demo(dataset_uuid, source_local=True):
+    import scipy
     dataset_id = RemoteId('dataset:' + dataset_uuid)
+    # FIXME need the object uuid or need path metadata from cassava
     _dsp = (
         '~/files/sparc-datasets/55c5b69c-a5b8-4881-a105-e4048af26fa5/SPARC/'
         'Quantified morphology of the human vagus nerve with anti-claudin-1/'
@@ -1865,6 +1948,7 @@ class AsIs:
 
 
 register_type(AsIs, 'quantity')  # HACK
+register_type(AsIs, 'range')
 
 
 def extract_fasc_fib(dataset_uuid, source_local=True):
@@ -2308,18 +2392,27 @@ def ingest_fasc_fib(session, source_local=True, do_insert=True, commit=False, de
 
 
 def ingest_reva_ft_all(session, source_local=False, do_insert=True, batch=False, commit=False, dev=False):
-
-    dataset_uuids = (
-        '2a3d01c0-39d3-464a-8746-54c9d67ebe0f',  # f006
-    )
-    (
-        'aa43eda8-b29a-4c25-9840-ecbd57598afc',  # f001
-        # the rest have uuid1 issues :/ all in the undefined folder it seems, might be able to fix with a reupload
-        'bc4cc558-727c-4691-ae6d-498b57a10085',  # f002  # XXX has a uuid1 so breaking in prod right now have to push the new pipelines
-        'ec6ad74e-7b59-409b-8fc7-a304319b6faf',  # f003  # also uuid1 issue
-        'a8b2bdc7-54df-46a3-810e-83cdf33cfc3a',  # f004
-        '04a5fed9-7ba6-4292-b1a6-9cab5c38895f',  # f005
-    )
+    do_all = False
+    if do_all:
+        from sparcur.config import auth
+        idft = auth.get_list('datasets-ft')
+        dataset_uuids = tuple(i.split(':')[-1] for i in idft)
+    else:
+        dataset_uuids = (
+            '2a3d01c0-39d3-464a-8746-54c9d67ebe0f',  # f006
+            # bad folder structure issue
+            '07a18a83-b044-4042-a4d1-5d472f538a11',  # f026
+            '8a9ca6e0-12d5-454f-8605-37bbc25d696d',  # f027
+            'b2573d78-669a-45c5-8af5-8c7df31239ab',  # f028
+        )
+        (
+            'aa43eda8-b29a-4c25-9840-ecbd57598afc',  # f001
+            # the rest have uuid1 issues :/ all in the undefined folder it seems, might be able to fix with a reupload
+            'bc4cc558-727c-4691-ae6d-498b57a10085',  # f002  # XXX has a uuid1 so breaking in prod right now have to push the new pipelines
+            'ec6ad74e-7b59-409b-8fc7-a304319b6faf',  # f003  # also uuid1 issue
+            'a8b2bdc7-54df-46a3-810e-83cdf33cfc3a',  # f004
+            '04a5fed9-7ba6-4292-b1a6-9cab5c38895f',  # f005
+        )
 
     batched = []
     for dataset_uuid in dataset_uuids:
