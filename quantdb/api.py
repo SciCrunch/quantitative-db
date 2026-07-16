@@ -57,13 +57,13 @@ url_sql_where = (  # TODO arity spec here
 )
 
 
-def get_where(kwargs, incequiv=False):
+def get_where(kwargs, endpoint_im=False):
     _where_cat = []
     _where_quant = []
     params = {}
     for u, s, w, t in url_sql_where:
         if u in kwargs and kwargs[u]:
-            if not incequiv and u == 'dataset':
+            if not endpoint_im and u in ('dataset', 'inst', 'subject', 'sample'):
                 w = w.replace('im.', 'imout.')
 
             params[s] = kwargs[u]
@@ -322,8 +322,8 @@ LEFT OUTER JOIN addresses AS ada ON ada.id = odq.addr_aspect
         (s_prov_objs + s_prov_i + ((',\n' + s_prov_c) if endpoint != 'values/inst' else '')) if kw.prov else '')
     select_quant = f'SELECT {maybe_distinct}{ep_select_quant}{q_count_quant}' + (
         (s_prov_objs + s_prov_i + ((',\n' + s_prov_q) if endpoint != 'values/inst' else '')) if kw.prov else '')
-    incequiv = gkw('include-equivalent')
-    _where_cat, _where_quant, params = get_where(kwargs, incequiv=incequiv)
+    endpoint_im = (endpoint in ('values/cat', 'terms', 'desc/cat', 'values/quant'))
+    _where_cat, _where_quant, params = get_where(kwargs, endpoint_im=endpoint_im)
     where_cat = f'WHERE {_where_cat}' if _where_cat else ''
     where_quant = f'WHERE {_where_quant}' if _where_quant else ''
 
@@ -332,6 +332,7 @@ LEFT OUTER JOIN addresses AS ada ON ada.id = odq.addr_aspect
         'CROSS JOIN LATERAL get_child_closed_inst(icin.id) AS ic ON im.id = ic.child',
     )) if kw.parent_inst else ''
 
+    incequiv = gkw('include-equivalent')
     _q_all_objects = (
         # TODO this is retained for legacy purposes, the proper approach is to
         # find all instances and then use the subquery to find objects
