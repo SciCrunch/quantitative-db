@@ -970,13 +970,16 @@ def ingest(dataset_uuid, extract_fun, session, commit=False, dev=False, values_a
         # this is ok if some other ingest provides these
         log.warning(f'no parents for {dataset_uuid}')
 
-    for chunk in chunk_list(void, batchsize):
-        vt, params = makeParamsValues(chunk)
-        session.execute(
-            sql_text(f'INSERT INTO obj_desc_inst (object, desc_inst, addr_field, addr_desc_inst) VALUES {vt}{ocdn}'), params
-        )
-        if commit:
-            session.commit()
+    if void:
+        for chunk in chunk_list(void, batchsize):
+            vt, params = makeParamsValues(chunk)
+            session.execute(
+                sql_text(f'INSERT INTO obj_desc_inst (object, desc_inst, addr_field, addr_desc_inst) VALUES {vt}{ocdn}'), params
+            )
+            if commit:
+                session.commit()
+    else:
+        log.warning(f'no void for {dataset_uuid}')
 
     if vocd:
         for chunk in chunk_list(vocd, batchsize):
@@ -984,6 +987,8 @@ def ingest(dataset_uuid, extract_fun, session, commit=False, dev=False, values_a
             session.execute(sql_text(f'INSERT INTO obj_desc_cat (object, desc_cat, addr_field) VALUES {vt}{ocdn}'), params)
             if commit:
                 session.commit()
+    else:
+        log.warning(f'no vocd for {dataset_uuid}')
 
     if voqd:
         for chunk in chunk_list(voqd, batchsize):
@@ -993,6 +998,8 @@ def ingest(dataset_uuid, extract_fun, session, commit=False, dev=False, values_a
             )
             if commit:
                 session.commit()
+    else:
+        log.warning(f'no voqd for {dataset_uuid}')
 
     if values_cv:
         for chunk in chunk_list(values_cv, batchsize):
@@ -1005,6 +1012,8 @@ def ingest(dataset_uuid, extract_fun, session, commit=False, dev=False, values_a
             )
             if commit:
                 session.commit()
+    else:
+        log.warning(f'no values_cv for {dataset_uuid}')
 
     if values_qv:
         for chunk in chunk_list(values_qv, batchsize):
@@ -1023,6 +1032,8 @@ def ingest(dataset_uuid, extract_fun, session, commit=False, dev=False, values_a
             session.execute(tin, params)
             if commit:
                 session.commit()
+    else:
+        log.warning(f'no values_qv for {dataset_uuid}')
 
 
 def extract_reva_ft(dataset_uuid, source_local=False, visualize=False):
@@ -1532,8 +1543,10 @@ def extract_demo_jp2(dataset_uuid, source_local=False):
     updated_transitive = max([i['timestamp_updated'] for i in ir['data'][1:]])  # 1: to skip the dataset object itself
 
     jp2 = [r for r in ir['data'] if 'mimetype' in r and r['mimetype'] == 'image/jp2']
+    nii = [r for r in ir['data'] if 'mimetype' in r and r['mimetype'] == 'image/gznii']
+    tif = [r for r in ir['data'] if 'mimetype' in r and r['mimetype'] == 'image/tiff']
 
-    exts = [ext_pmeta123(j) for j in jp2]
+    exts = [ext_pmeta123(j) for j in nii] + [ext_pmeta123(j) for j in tif]
 
     instances, parents, objects, values_objects, values_dataset_object, _, _ = ext_values(exts)
 
