@@ -924,11 +924,17 @@ def getArgs(request, endpoint, dev=False):
             try:
                 return float(v)
             except ValueError as e:
+                if '?' in v:
+                    raise exc.BadValue(f'malformed query string value {v!r}')
+
                 raise e
         elif k == 'limit':
             try:
                 return int(v)
             except ValueError as e:
+                if '?' in v:
+                    raise exc.BadValue(f'malformed query string value {v!r}')
+
                 raise e
         elif k == 'count':
             return v.lower() == 'true'
