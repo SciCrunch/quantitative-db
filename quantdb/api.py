@@ -586,7 +586,7 @@ LEFT OUTER JOIN addresses AS ada ON ada.id = odq.addr_aspect
         query = cons_query(_where_cat, _where_quant, q_cat, q_quant,
                            where_cat, where_quant, q_dl_cat, q_dl_quant,
                            else_query, results_query,
-                           descriptor_level, gkw('union-cat-quant'))
+                           descriptor_level, gkw('union-cat-quant'), endpoint)
     else:
         #operator = 'UNION' if 'union-cat-quant' in kwargs and kwargs['union-cat-quant'] else 'INTERSECT'
         #operator = 'UNION' if force_union or gkw('union-cat-quant') else 'INTERSECT'
@@ -781,16 +781,17 @@ args_default = {
 
 def cons_query(_where_cat, _where_quant, q_cat, q_quant, where_cat, where_quant,
                q_dl_cat, q_dl_quant, else_query, results_query,
-               descriptor_level, union_cat_quant):
+               descriptor_level, union_cat_quant, endpoint):
     if descriptor_level:
         _odi = 'idin.label = any(:desc_inst)'
         _odd = 'im.dataset = :dataset'
         _oddo = 'imout.dataset = :dataset'
         only_di_cat = _where_cat == _odi or _where_cat == _odd or _where_cat == _oddo
         only_di_quant = _where_quant == _odi or _where_quant == _odd or _where_quant == _oddo
-        #breakpoint()
         if only_di_cat and only_di_quant:
-            if False:  # FIXME TODO need to figure out how to give priority based on endpoint here
+            # FIXME TODO need to figure out how to give priority based on endpoint here
+            _ok_endpoints = 'objects',
+            if union_cat_quant and endpoint in _ok_endpoints:
                 query = f'{q_dl_cat}\nUNION\n{q_dl_quant}'
             else:
                 query = f'{q_dl_quant}'
