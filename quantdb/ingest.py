@@ -2466,6 +2466,12 @@ def ingest_reva_ft_all(session, source_local=False, do_insert=True, batch=False,
             ingest(duuid, None, session, commit=commit, dev=dev, values_args=vargs)
 
 
+def ingest_reva_cd_uct(session, source_local=False, do_insert=True, batch=False, commit=False, dev=False):
+    # mapping of csv files for microct to quantiative descriptors
+    dataset_uuid = 'fb1cbd05-4320-4d8b-ac3a-44f1fe810718'  # cd microct
+    ingest(dataset_uuid, extract_cduct, session, commit=commit, dev=dev)
+
+
 def ingest_entity_metadata_all(session, source_local=False, do_insert=True, batch=False, commit=False, dev=False):
     do_all = False
     uuidvs = '031598b5-88eb-44eb-ba70-67ad1c2fe36a'  # unified scaffold dataset
@@ -2803,17 +2809,21 @@ def main(source_local=False, commit=False, echo=False):
 
     dbkwargs = {k: auth.get(f'db-{k}') for k in ('user', 'host', 'port', 'database')}  # TODO integrate with cli options
     dbkwargs['dbuser'] = dbkwargs.pop('user')
+    log.info(dbUri(**dbkwargs))
     engine = create_engine(dbUri(**dbkwargs), query_cache_size=0)
     log.info(engine)
     engine.echo = echo
     session = Session(engine)
 
     do_all = True
+    do_ft = False
+    _do_demo = False
     do_ent_all = False or do_all
-    do_fasc_fib = False or do_all
-    do_reva_ft = False or do_all
-    do_demo_jp2 = False or do_all
-    do_demo = False or do_all
+    do_fasc_fib = False or do_all or do_ft
+    do_reva_ft = False or do_all or do_ft
+    do_reva_cd = False or do_all  # TODO
+    do_demo_jp2 = False or do_all or _do_demo
+    do_demo = False or do_all or _do_demo
 
     if do_ent_all:
         try:
@@ -2836,6 +2846,15 @@ def main(source_local=False, commit=False, echo=False):
     if do_reva_ft:
         try:
             ingest_reva_ft_all(session, source_local=source_local, do_insert=True, batch=True, commit=commit, dev=True)
+        except Exception as e:
+            session.rollback()
+            session.close()
+            engine.dispose()
+            raise e
+
+    if do_reva_cd:
+        try:
+            ingest_reva_cd_uct(session, source_local=source_local, do_insert=True, batch=True, commit=commit, dev=True)
         except Exception as e:
             session.rollback()
             session.close()
