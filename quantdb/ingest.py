@@ -2468,8 +2468,11 @@ def ingest_reva_ft_all(session, source_local=False, do_insert=True, batch=False,
 
 def ingest_entity_metadata_all(session, source_local=False, do_insert=True, batch=False, commit=False, dev=False):
     do_all = False
-    uuidvs = '031598b5-88eb-44eb-ba70-67ad1c2fe36a'
-    _uuids = [
+    uuidvs = '031598b5-88eb-44eb-ba70-67ad1c2fe36a'  # unified scaffold dataset
+    from sparcur.config import auth
+    idft = auth.get_list('datasets-ft')
+    ft_uuids = [i.split(':')[-1] for i in idft]
+    _uuids = ft_uuids + [
         # referenced by scaffolds FIXME make it so we don't need to do it this way
         '2a3d01c0-39d3-464a-8746-54c9d67ebe0f',  # f006
         'dfb4a04a-6f9f-4b8b-97d1-f06b97c448d0',  # test M00
