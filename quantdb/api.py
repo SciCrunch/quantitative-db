@@ -364,7 +364,9 @@ LEFT OUTER JOIN addresses AS ada ON ada.id = odq.addr_aspect
 
     # FIXME even trying to be smart here about which joins to pull just papers over the underlying perf issue
     # shaves about 140ms off but the underlying issue remains
-    _need_cv = sn.value_cat or kw.value_cat or sn.desc_cat or kw.desc_cat or kw.desc_inst or gkw('object') or kw.prov
+    _need_cv = (sn.value_cat or kw.value_cat or sn.desc_cat or kw.desc_cat or
+                (kw.desc_inst and not endpoint == 'values/inst')
+                or gkw('object') or kw.prov)
     q_cat = '\n'.join((
         'FROM values_inst AS im',
         ('LEFT OUTER JOIN equiv_inst AS eim ON eim.left_thing = im.id' if incequiv else ''),
@@ -405,7 +407,9 @@ LEFT OUTER JOIN addresses AS ada ON ada.id = odq.addr_aspect
          ) if sn.aspect else '')
     _units = 'LEFT OUTER JOIN units AS u ON qd.unit = u.id' if sn.unit or kw.unit else ''
 
-    _need_qv = sn.value_quant or kw.value_quant or sn.desc_quant or kw.desc_quant or kw.desc_inst or gkw('object') or kw.prov
+    _need_qv = (sn.value_quant or kw.value_quant or sn.desc_quant or kw.desc_quant or
+                (kw.desc_inst and not endpoint == 'values/inst')
+                or gkw('object') or kw.prov)
     _q_quant = (
         'FROM values_inst AS im',
         ('LEFT OUTER JOIN equiv_inst AS eim ON eim.left_thing = im.id' if incequiv else ''),
