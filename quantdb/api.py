@@ -63,9 +63,6 @@ def get_where(kwargs, endpoint_im=False):
     params = {}
     for u, s, w, t in url_sql_where:
         if u in kwargs and kwargs[u]:
-            if not endpoint_im and u in ('dataset', 'inst', 'subject', 'sample'):
-                w = w.replace('im.', 'imout.')
-
             params[s] = kwargs[u]
             if t == 'cat':
                 _where_cat.append(w)
@@ -470,6 +467,7 @@ LEFT OUTER JOIN addresses AS ada ON ada.id = odq.addr_aspect
         _dl_desc_inst_in_c,
         _dl_desc_inst_c,
         _objects_c,
+        ('JOIN dataset_object AS im ON im.object = imout.object' if gkw('dataset') else ''),
     ))
 
     _objects_q = (
@@ -496,6 +494,7 @@ LEFT OUTER JOIN addresses AS ada ON ada.id = odq.addr_aspect
         _dl_desc_inst_in_q,
         _dl_desc_inst_q,
         _objects_q,
+        ('JOIN dataset_object AS im ON im.object = imout.object' if gkw('dataset') else ''),
     ))
 
     limit = gkw('limit')
@@ -789,9 +788,8 @@ def cons_query(_where_cat, _where_quant, q_cat, q_quant, where_cat, where_quant,
     if descriptor_level:
         _odi = 'idin.label = any(:desc_inst)'
         _odd = 'im.dataset = :dataset'
-        _oddo = 'imout.dataset = :dataset'
-        only_di_cat = _where_cat == _odi or _where_cat == _odd or _where_cat == _oddo
-        only_di_quant = _where_quant == _odi or _where_quant == _odd or _where_quant == _oddo
+        only_di_cat = _where_cat == _odi or _where_cat == _odd
+        only_di_quant = _where_quant == _odi or _where_quant == _odd
         if only_di_cat and only_di_quant:
             # FIXME TODO need to figure out how to give priority based on endpoint here
             _ok_endpoints = 'objects',
